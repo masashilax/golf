@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- iOS Web App設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Vegas Golf">
+    <meta name="format-detection" content="telephone=no">
+
+    <title>ラスベガス・ゴルフ計算機</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            background-color: #f3f4f6; 
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            /* セーフエリア対応 */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            min-height: 100vh;
+        }
+
+        /* 入力フォームのズーム防止(iOS) */
+        input, select, textarea {
+            font-size: 16px !important; 
+        }
+
+        /* 数字入力のスピンボタン消去 */
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+
+        /* ボタンプッシュ時のアニメーション */
+        .btn-press:active { 
+            transform: scale(0.96); 
+            opacity: 0.9;
+        }
+
+        /* スクロールバー非表示（見た目重視） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ユーティリティ ---
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const getToday = () => new Date().toISOString().split('T')[0];
+
+        // --- メインアプリコンポーネント ---
+        const App = () => {
+            const [view, setView] = useState('HOME'); // HOME, NEW, GAME
+            const [games, setGames] = useState([]);
+            const [activeGameId, setActiveGameId] = useState(null);
+
+            // ロード時にデータを取得
+            useEffect(() => {
+                const saved = localStorage.getItem('golf_vegas_data');
+                if (saved) setGames(JSON.parse(saved));
+            }, []);
+
+            // データ保存
+            useEffect(() => {
+                localStorage.setItem('golf_vegas_data', JSON.stringify(games));
+            }, [games]);
+
+            // 新規ゲーム作成
+            const createGame = (setupData) => {
+                const newGame = {
+                    id: generateId(),
+                    date: setupData.date,
+                    course: setupData.course,
+                    players: setupData.players, // [{id:0, name:..}, ...]
+                    scores: [], // 履歴
+                    currentHole: 1,
+                    currentOrder: [0, 1, 2, 3], // プレイヤーIDの並び順
+                    totalPoints: {0:0, 1:0, 2:0, 3:0},
+                    isFinished: false
+                };
+                setGames([newGame, ...games]);
+                setActiveGameId(newGame.id);
+                setView('GAME');
+            };
+
+            // ゲーム更新
+            const updateGame = (updatedGame) => {
+                const newGames = games.map(g => g.id === updatedGame.id ? updatedGame : g);
+                setGames(newGames);
+            };
+
+            // ゲーム削除
+            const deleteGame = (e, id) => {
+                e.stopPropagation();
+                if(confirm('この履歴を削除しますか？')) {
+                    setGames(games.filter(g => g.id !== id));
+                }
+            };
+
+            // 画面切り替え
+            const activeGame = games.find(g => g.id === activeGameId);
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-gray-100 flex flex-col">
+                    {/* ヘッダー */}
+                    <div className="bg-green-700 text-white p-4 pt-4 shadow-lg sticky top-0 z-50 flex justify-between items-center">
+                        <h1 className="text-xl font-bold flex items-center gap-2">
+                            <i className="fa-solid fa-golf-ball-tee"></i> Vegas Golf
+                        </h1>
+                        {view !== 'HOME' && (
+                            <button onClick={() => setView('HOME')} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900">
+                                一覧へ
+                            </button>
+                        )}
+                    </div>
+
+                    {/* コンテンツ */}
+                    <div className="flex-1 p-4 pb-24 safe-area-bottom">
+                        {view === 'HOME' && (
+                            <HomeScreen 
+                                games={games} 
+                                onNew={() => setView('NEW')} 
+                                onSelect={(id) => { setActiveGameId(id); setView('GAME'); }}
+                                onDelete={deleteGame}
+                            />
+                        )}
+                        {view === 'NEW' && (
+                            <NewGameScreen 
+                                onCancel={() => setView('HOME')} 
+                                onCreate={createGame} 
+                                lastPlayers={games.length > 0 ? games[0].players.map(p=>p.name) : null}
+                            />
+                        )}
+                        {view === 'GAME' && activeGame && (
+                            <GameScreen 
+                                game={activeGame} 
+                                onUpdate={updateGame}
+                            />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 1. ホーム画面（履歴一覧） ---
+        const HomeScreen = ({ games, onNew, onSelect, onDelete }) => {
+            return (
+                <div className="space-y-6">
+                    <button onClick={onNew} className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-bold py-5 rounded-2xl shadow-lg flex items-center justify-center gap-3 text-lg btn-press transition transform">
+                        <i className="fa-solid fa-plus-circle text-2xl"></i> 新しいゲームを開始
+                    </button>
+                    
+                    <div>
+                        <h2 className="text-gray-500 text-xs font-bold mb-3 uppercase tracking-wider ml-1">履歴 ({games.length})</h2>
+                        
+                        {games.length === 0 && <p className="text-center text-gray-400 py-12 bg-white rounded-xl border border-dashed border-gray-300">履歴がありません</p>}
+                        
+                        <div className="space-y-3">
+                            {games.map(game => (
+                                <div key={game.id} onClick={() => onSelect(game.id)} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition cursor-pointer relative overflow-hidden btn-press">
+                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500"></div>
+                                    <div className="flex justify-between items-start pl-3 mb-2">
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-lg leading-tight">{game.course || 'コース未設定'}</h3>
+                                            <p className="text-gray-400 text-xs mt-1 font-medium"><i className="far fa-calendar-alt mr-1"></i>{game.date}</p>
+                                        </div>
+                                        <button onClick={(e) => onDelete(e, game.id)} className="text-gray-300 hover:text-red-500 p-2 -mr-2 -mt-2">
+                                            <i className="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div className="pl-3 flex flex-wrap gap-1.5">
+                                        {game.players.map((p, i) => (
+                                            <span key={i} className={`text-xs px-2 py-0.5 rounded font-bold ${game.totalPoints[p.id] >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'}`}>
+                                                {p.name}: {game.totalPoints[p.id] > 0 ? '+' : ''}{game.totalPoints[p.id]}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 2. 新規ゲーム設定画面 ---
+        const NewGameScreen = ({ onCancel, onCreate, lastPlayers }) => {
+            const [course, setCourse] = useState('');
+            const [date, setDate] = useState(getToday());
+            const [pNames, setPNames] = useState(lastPlayers || ['お父さん', 'Aさん', 'Bさん', 'Cさん']);
+
+            const handleSubmit = () => {
+                if (!course) { alert('ゴルフ場名を入力してください'); return; }
+                const players = pNames.map((name, i) => ({ id: i, name: name || `プレイヤー${i+1}` }));
+                onCreate({ date, course, players });
+            };
+
+            const updateName = (idx, val) => {
+                const newNames = [...pNames];
+                newNames[idx] = val;
+                setPNames(newNames);
+            };
+
+            return (
+                <div className="bg-white rounded-2xl shadow-sm p-5 space-y-6">
+                    <h2 className="text-lg font-bold text-center border-b pb-3 text-gray-700">新規ゲーム設定</h2>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">日付</label>
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500" />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゴルフ場名</label>
+                            <input type="text" placeholder="例：〇〇カントリー" value={course} onChange={(e) => setCourse(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 placeholder-gray-300" />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">メンバー</label>
+                            <div className="space-y-2">
+                                {pNames.map((name, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                        <span className="w-6 text-center text-gray-400 font-bold text-sm">{i+1}</span>
+                                        <input type="text" value={name} onChange={(e) => updateName(i, e.target.value)} className="flex-1 p-2.5 bg-gray-50 rounded-lg text-gray-800 font-medium outline-none focus:ring-2 ring-green-500" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold btn-press">キャンセル</button>
+                        <button onClick={handleSubmit} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-md btn-press">開始</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 3. ゲームプレイ画面 ---
+        const GameScreen = ({ game, onUpdate }) => {
+            const [par, setPar] = useState(4);
+            const [scores, setScores] = useState({0:'', 1:'', 2:'', 3:''});
+            const [showResult, setShowResult] = useState(null); // 結果モーダル用
+
+            const players = game.players;
+            const currentOrder = game.currentOrder; // [pID, pID, pID, pID]
+            
+            // チーム分け: 1位&4位 vs 2位&3位
+            const team1 = [currentOrder[0], currentOrder[3]];
+            const team2 = [currentOrder[1], currentOrder[2]];
+
+            // 打順変更（1ホール目用）
+            const moveOrder = (fromIdx, toIdx) => {
+                if (game.currentHole !== 1) return;
+                const newOrder = [...currentOrder];
+                const [removed] = newOrder.splice(fromIdx, 1);
+                newOrder.splice(toIdx, 0, removed);
+                onUpdate({ ...game, currentOrder: newOrder });
+            };
+
+            const calculate = () => {
+                // 入力チェック
+                for(let i=0; i<4; i++) {
+                    if(scores[i] === '') { alert('全員のスコアを入力してください'); return; }
+                }
+
+                const s = (pid) => parseInt(scores[pid]);
+                const t1Scores = team1.map(pid => s(pid));
+                const t2Scores = team2.map(pid => s(pid));
+
+                // ラスベガス計算基本 (小さい方が十の位)
+                let p1 = Math.min(...t1Scores) * 10 + Math.max(...t1Scores);
+                let p2 = Math.min(...t2Scores) * 10 + Math.max(...t2Scores);
+
+                // 特殊ルール判定関数
+                const checkSpecial = (scores) => {
+                    const hasEagle = scores.some(score => score <= par - 2);
+                    const birdieCount = scores.filter(score => score <= par - 1).length;
+                    const hasBirdie = birdieCount > 0;
+                    const hasDoubleBirdie = birdieCount === 2; 
+                    
+                    let rank = 0;
+                    if (hasEagle || hasDoubleBirdie) rank = 2;
+                    else if (hasBirdie) rank = 1;
+
+                    return { rank, hasEagle, hasDoubleBirdie, hasBirdie };
+                };
+
+                const t1Special = checkSpecial(t1Scores);
+                const t2Special = checkSpecial(t2Scores);
+
+                let msgList = [];
+                let mult = 1;
+
+                // --- チームA(1) の効果発動判定 ---
+                if (t1Special.rank > 0) {
+                    if (t1Special.rank === 2) {
+                        if (t1Special.hasEagle) msgList.push('🦅 Aチーム: イーグル (B反転＆x2)');
+                        else msgList.push('🐦🐦 Aチーム: Wバーディ (B反転＆x2)');
+                        mult *= 2;
+                    } else {
+                        msgList.push('🐦 Aチーム: バーディ (B反転)');
+                    }
+                    p2 = Math.max(...t2Scores) * 10 + Math.min(...t2Scores);
+                }
+
+                // --- チームB(2) の効果発動判定 ---
+                if (t2Special.rank > 0) {
+                    if (t2Special.rank === 2) {
+                        if (t2Special.hasEagle) msgList.push('🦅 Bチーム: イーグル (A反転＆x2)');
+                        else msgList.push('🐦🐦 Bチーム: Wバーディ (A反転＆x2)');
+                        mult *= 2;
+                    } else {
+                        msgList.push('🐦 Bチーム: バーディ (A反転)');
+                    }
+                    p1 = Math.max(...t1Scores) * 10 + Math.min(...t1Scores); 
+                }
+
+                const msg = msgList.join('\n');
+
+                // 素の差分 (p2 - p1) とすることで、スコアが小さい(良い)チームがプラスになる
+                const rawDiff = (p2 - p1) * mult;
+
+                // 5点刻み切り上げ処理
+                const absDiff = Math.abs(rawDiff);
+                let roundedAbs = 0;
+                if (absDiff > 0) {
+                    roundedAbs = Math.ceil(absDiff / 5) * 5;
+                }
+                const diff = rawDiff >= 0 ? roundedAbs : -roundedAbs;
+
+                setShowResult({
+                    p1_disp: p1,
+                    p2_disp: p2,
+                    diff: diff,
+                    msg: msg,
+                    t1_ids: team1,
+                    t2_ids: team2
+                });
+            };
+
+            const confirmResult = () => {
+                if (!showResult) return;
+                const { diff, t1_ids, t2_ids } = showResult;
+
+                // ポイント更新
+                const newTotal = { ...game.totalPoints };
+                players.forEach(p => {
+                    if (t1_ids.includes(p.id)) newTotal[p.id] += diff;
+                    else newTotal[p.id] -= diff;
+                });
+
+                // 次の打順（スコア順、同点は今の順維持）
+                const s = (pid) => parseInt(scores[pid]);
+                const newOrder = [...currentOrder].sort((a, b) => {
+                    if (s(a) !== s(b)) return s(a) - s(b);
+                    return currentOrder.indexOf(a) - currentOrder.indexOf(b); // 同点なら今の順
+                });
+
+                // 履歴保存
+                const newHistory = [
+                    ...game.scores, 
+                    {
+                        hole: game.currentHole,
+                        par: par,
+                        result: diff,
+                        scores: { ...scores },
+                        teams: { t1: t1_ids, t2: t2_ids }
+                    }
+                ];
+
+                onUpdate({
+                    ...game,
+                    currentHole: game.currentHole + 1,
+                    currentOrder: newOrder,
+                    totalPoints: newTotal,
+                    scores: newHistory
+                });
+
+                // リセット
+                setScores({0:'', 1:'', 2:'', 3:''});
+                setShowResult(null);
+                setPar(4);
+            };
+
+            return (
+                <div className="pb-8">
+                    {/* ホール情報 */}
+                    <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 text-center border border-gray-100">
+                        <div className="flex justify-between items-center mb-3">
+                            <h2 className="text-xl font-bold text-gray-800">Hole {game.currentHole}</h2>
+                            <div className="flex bg-gray-100 rounded-lg p-1">
+                                {[3, 4, 5].map(p => (
+                                    <button key={p} onClick={() => setPar(p)} 
+                                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${par === p ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>
+                                        Par {p}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-medium tracking-wide">
+                             {game.currentHole === 1 ? '※初回は打順(オナー順)を確認してください' : '※前ホールのスコア順で自動ペアリング'}
+                        </div>
+                    </div>
+
+                    {/* 対戦カード */}
+                    <div className="space-y-3">
+                        <TeamCard 
+                            color="blue" 
+                            label="チーム A (1打 & 4打)" 
+                            pIds={team1} 
+                            players={players} 
+                            scores={scores} 
+                            setScores={setScores}
+                            par={par}
+                            canMove={game.currentHole === 1}
+                            onMoveUp={() => moveOrder(3, 2)} 
+                        />
+                        <div className="text-center font-bold text-gray-300 text-sm tracking-widest">VS</div>
+                        <TeamCard 
+                            color="red" 
+                            label="チーム B (2打 & 3打)" 
+                            pIds={team2} 
+                            players={players} 
+                            scores={scores} 
+                            setScores={setScores}
+                            par={par}
+                            canMove={game.currentHole === 1}
+                        />
+                    </div>
+
+                    {/* 計算ボタン */}
+                    <button onClick={calculate} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
+                        計算する
+                    </button>
+
+                    {/* トータルスコア表 */}
+                    <div className="mt-6 bg-white rounded-xl shadow-sm p-3 border border-gray-100">
+                        <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase ml-1">トータル収支</h3>
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                            {players.map(p => (
+                                <div key={p.id} className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-[10px] text-gray-500 truncate font-bold mb-1">{p.name}</div>
+                                    <div className={`font-bold text-lg leading-none ${game.totalPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                                        {game.totalPoints[p.id] > 0 ? '+' : ''}{game.totalPoints[p.id]}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ★ ホール履歴一覧 ★ */}
+                    <HistorySection game={game} players={players} />
+
+                    {/* 結果モーダル */}
+                    {showResult && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                                <h3 className="text-gray-400 text-sm font-bold mb-4 uppercase tracking-wider">Result</h3>
+                                
+                                {showResult.msg && <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-xl mb-4 text-xs font-bold whitespace-pre-wrap">{showResult.msg}</div>}
+
+                                <div className="flex justify-center items-center gap-6 mb-6">
+                                    <div className={`flex flex-col ${showResult.diff > 0 ? 'scale-110 transition-transform' : ''}`}>
+                                        <span className="text-xs text-gray-400 font-bold mb-1">TEAM A</span>
+                                        <span className={`text-4xl font-black ${showResult.diff > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+                                            {showResult.p1_disp}
+                                        </span>
+                                    </div>
+                                    <div className="text-gray-200 font-bold text-xl">vs</div>
+                                    <div className={`flex flex-col ${showResult.diff < 0 ? 'scale-110 transition-transform' : ''}`}>
+                                        <span className="text-xs text-gray-400 font-bold mb-1">TEAM B</span>
+                                        <span className={`text-4xl font-black ${showResult.diff < 0 ? 'text-red-600' : 'text-gray-300'}`}>
+                                            {showResult.p2_disp}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="text-2xl font-bold mb-8">
+                                    {showResult.diff > 0 ? (
+                                        <div className="animate-bounce-short">
+                                            <span className="text-blue-600 block text-lg mb-1">TEAM A WIN!</span>
+                                            <span className="text-5xl text-blue-600 font-black">+{showResult.diff}</span>
+                                        </div>
+                                    ) : showResult.diff < 0 ? (
+                                        <div className="animate-bounce-short">
+                                            <span className="text-red-600 block text-lg mb-1">TEAM B WIN!</span>
+                                            <span className="text-5xl text-red-600 font-black">+{Math.abs(showResult.diff)}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-400">引き分け</span>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowResult(null)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">戻る</button>
+                                    <button onClick={confirmResult} className="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold shadow-lg btn-press">次へ</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- 履歴一覧コンポーネント ---
+        const HistorySection = ({ game, players }) => {
+            if (!game.scores || game.scores.length === 0) return null;
+
+            return (
+                <div className="mt-6 bg-white rounded-xl shadow-sm p-4 overflow-x-auto border border-gray-100 no-scrollbar">
+                    <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase ml-1">ホール別結果</h3>
+                    <table className="w-full text-center text-sm border-collapse min-w-[320px]">
+                        <thead>
+                            <tr className="bg-gray-50 text-gray-500">
+                                <th className="p-2 rounded-l text-xs">H</th>
+                                {players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-xs">{p.name}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {game.scores.map((h, i) => {
+                                // 各プレイヤーの勝ち負け点数を計算
+                                const getPoint = (pid) => {
+                                    if (!h.teams) return null; 
+                                    if (h.teams.t1.includes(pid)) return h.result;
+                                    return -h.result;
+                                };
+
+                                return (
+                                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                                        <td className="p-2 font-bold text-gray-400 text-xs">{h.hole}</td>
+                                        {players.map(p => {
+                                            const pt = getPoint(p.id);
+                                            const score = h.scores[p.id];
+                                            const ptClass = pt > 0 ? 'text-blue-600 bg-blue-50' : pt < 0 ? 'text-red-500 bg-red-50' : 'text-gray-400';
+                                            const ptStr = pt > 0 ? `+${pt}` : pt;
+                                            
+                                            return (
+                                                <td key={p.id} className="p-2">
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="font-bold text-gray-800 leading-tight">{score}</div>
+                                                        {pt !== null && <div className={`text-[10px] font-bold px-1.5 rounded mt-0.5 ${ptClass}`}>{ptStr}</div>}
+                                                    </div>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        const TeamCard = ({ color, label, pIds, players, scores, setScores, par, canMove, onMoveUp }) => {
+            const isBlue = color === 'blue';
+            const bgClass = isBlue ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100';
+            const textClass = isBlue ? 'text-blue-600' : 'text-red-600';
+            const ringClass = isBlue ? 'focus:ring-blue-400' : 'focus:ring-red-400';
+
+            return (
+                <div className={`rounded-2xl border-2 p-3 ${bgClass}`}>
+                    <div className={`text-[10px] font-bold ${textClass} mb-2 flex justify-between uppercase tracking-wider`}>
+                        {label}
+                    </div>
+                    <div className="flex gap-2.5">
+                        {pIds.map((pid, idx) => {
+                            const p = players.find(x => x.id === pid);
+                            return (
+                                <div key={pid} className="flex-1 bg-white/80 backdrop-blur rounded-xl p-2 shadow-sm text-center relative border border-white/50">
+                                    <div className="text-xs font-bold text-gray-600 truncate mb-1">{p.name}</div>
+                                    <input 
+                                        type="tel" 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        placeholder={par}
+                                        value={scores[pid]}
+                                        onChange={(e) => setScores({...scores, [pid]: e.target.value})}
+                                        className={`w-full text-center text-3xl font-black text-gray-800 bg-transparent rounded border-0 p-1 focus:ring-0 placeholder-gray-200 outline-none`}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
