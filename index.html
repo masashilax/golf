@@ -216,8 +216,7 @@
                                         </div>
                                         <button onClick={(e) => {
                                             e.stopPropagation();
-                                            // 履歴削除ボタン
-                                            onDelete(e, game.id);
+                                            if(window.confirm('この履歴を削除しますか？')) onDelete(e, game.id);
                                         }} className="text-gray-300 hover:text-red-500 p-2 -mr-2 -mt-2">
                                             <i className="fa-solid fa-trash"></i>
                                         </button>
@@ -449,9 +448,12 @@
             };
 
             const handleManualAdjChange = (pId, value) => {
-                // マイナス、数値のみを許可する正規表現バリデーション
-                if (value === '' || value === '-' || /^-?\d*$/.test(value)) {
-                    setPlayerOptions(prev => ({ ...prev, [pId]: { ...prev[pId], manualAdj: value } }));
+                // よくあるマイナス系記号（全角マイナス、長音符など）を半角マイナスに自動置換
+                let normalized = value.replace(/[－ー−—]/g, '-');
+                
+                // バリデーション: 空文字、マイナスのみ、あるいは数値（オプションで先頭マイナス）
+                if (normalized === '' || normalized === '-' || /^-?\d*$/.test(normalized)) {
+                    setPlayerOptions(prev => ({ ...prev, [pId]: { ...prev[pId], manualAdj: normalized } }));
                 }
             };
 
@@ -538,7 +540,7 @@
                 });
                 onUpdate({ ...game, currentHole: game.currentHole - 1, currentOrder: lastHole.orderBefore, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
                 setUndoConfirm(false);
-                window.scrollTo(0, 0);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             return (
@@ -607,7 +609,7 @@
                                                     <input 
                                                         type="text" 
                                                         inputMode="text" 
-                                                        placeholder="±0" 
+                                                        placeholder="" 
                                                         value={opt.manualAdj} 
                                                         onChange={(e) => handleManualAdjChange(p.id, e.target.value)} 
                                                         className="w-16 text-center text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded py-1 outline-none focus:ring-1 focus:ring-yellow-500" 
