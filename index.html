@@ -142,7 +142,7 @@
                     players: setupData.players,
                     scores: [],
                     currentHole: 1,
-                    currentOrder: [0, 1, 2, 3],
+                    currentOrder: setupData.currentOrder || [0, 1, 2, 3],
                     totalVegasPoints: {0:0, 1:0, 2:0, 3:0},
                     totalOlympicPoints: {0:0, 1:0, 2:0, 3:0},
                     settings: setupData.settings,
@@ -226,7 +226,7 @@
                                             return (
                                                 <div key={i} className="text-[10px] text-gray-500 flex justify-between border-b border-gray-50 pb-0.5">
                                                     <span className="font-bold text-gray-700 truncate mr-1">{p.name}</span>
-                                                    <span className="flex gap-1.5 text-gray-500">
+                                                    <span className="flex gap-1.5">
                                                         {game.settings?.vegas && (
                                                             <span>
                                                                 V:<span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
@@ -265,21 +265,44 @@
         const NewGameScreen = ({ onCancel, onCreate }) => {
             const [course, setCourse] = useState('');
             const [date, setDate] = useState(getToday());
-            const [pNames, setPNames] = useState(['松本洋介', '', '', '']);
+            const [playerData, setPlayerData] = useState([
+                { name: '松本洋介', order: 1 },
+                { name: '', order: 2 },
+                { name: '', order: 3 },
+                { name: '', order: 4 }
+            ]);
             const [settings, setSettings] = useState({ vegas: true, olympic: true });
 
             const handleSubmit = () => {
                 if (!course) { alert('ゴルフ場名を入力してください'); return; }
                 if (!settings.vegas && !settings.olympic) { alert('ゲームモードを選択してください'); return; }
-                const players = pNames.map((name, i) => ({ id: i, name: name || `プレイヤー${i+1}` }));
-                onCreate({ date, course, players, settings });
+                
+                // 名前の確定（空ならプレイヤーN）
+                const players = playerData.map((p, i) => ({ 
+                    id: i, 
+                    name: p.name || `プレイヤー${i+1}` 
+                }));
+
+                // 指定された打順（order）に基づいてIDを並べ替える
+                const currentOrder = [0, 1, 2, 3].sort((a, b) => {
+                    return playerData[a].order - playerData[b].order;
+                });
+
+                onCreate({ date, course, players, settings, currentOrder });
             };
 
-            const updateName = (idx, val) => {
-                const newNames = [...pNames];
-                newNames[idx] = val;
-                setPNames(newNames);
+            const updatePlayer = (idx, field, val) => {
+                const newData = [...playerData];
+                newData[idx][field] = val;
+                setPlayerData(newData);
             };
+
+            const resetPlayers = () => setPlayerData([
+                { name: '松本洋介', order: 1 },
+                { name: '', order: 2 },
+                { name: '', order: 3 },
+                { name: '', order: 4 }
+            ]);
 
             return (
                 <div className="bg-white rounded-2xl shadow-sm p-5 space-y-6">
@@ -314,17 +337,34 @@
 
                         <div>
                             <div className="flex justify-between items-end mb-2">
-                                <label className="block text-xs font-bold text-gray-500 uppercase">メンバー</label>
-                                <button onClick={() => setPNames(['松本洋介', '', '', ''])} className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition"><i className="fa-solid fa-rotate-left mr-1"></i>クリア</button>
+                                <label className="block text-xs font-bold text-gray-500 uppercase">メンバーと初期打順</label>
+                                <button onClick={resetPlayers} className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition"><i className="fa-solid fa-rotate-left mr-1"></i>クリア</button>
                             </div>
-                            <div className="space-y-2">
-                                {pNames.map((name, i) => (
+                            <div className="space-y-3">
+                                {playerData.map((p, i) => (
                                     <div key={i} className="flex items-center gap-2">
-                                        <span className="w-6 text-center text-gray-400 font-bold text-sm">{i+1}</span>
-                                        <input type="text" value={name} onChange={(e) => updateName(i, e.target.value)} placeholder={i === 0 ? "" : "名前を入力"} className="flex-1 p-2.5 bg-gray-50 rounded-lg text-gray-800 font-medium outline-none focus:ring-2 ring-green-500" />
+                                        <span className="w-5 text-center text-gray-400 font-bold text-xs">{i+1}</span>
+                                        <input 
+                                            type="text" 
+                                            value={p.name} 
+                                            onChange={(e) => updatePlayer(i, 'name', e.target.value)} 
+                                            placeholder="名前を入力" 
+                                            className="flex-1 p-2 bg-gray-50 rounded-lg text-sm text-gray-800 font-medium outline-none focus:ring-2 ring-green-500" 
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] text-gray-400 font-bold text-center uppercase">打順</span>
+                                            <select 
+                                                value={p.order}
+                                                onChange={(e) => updatePlayer(i, 'order', parseInt(e.target.value))}
+                                                className="p-2 bg-gray-100 rounded-lg text-xs font-bold text-gray-600 outline-none border-0"
+                                            >
+                                                {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n}番目</option>)}
+                                            </select>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
+                            <p className="text-[9px] text-gray-400 mt-2">※打順が重複した場合は入力順(上から)になります</p>
                         </div>
                     </div>
                     <div className="flex gap-3 pt-2">
@@ -345,8 +385,7 @@
             const initialOpts = {
                 rod: false, sand: false, near: false, reverse: false, 
                 birdie: false, eagle: false, four: false, straight: false,
-                rodState: 0, isIronFail: false,
-                manualAdj: '' // ローカルルール調整用
+                rodState: 0, isIronFail: false, manualAdj: ''
             };
             const [playerOptions, setPlayerOptions] = useState({
                 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts }
@@ -470,7 +509,6 @@
                         if (opt.rodState === 1) pts += 3;
                         else if (opt.rodState === -1) pts -= 3;
                         if (opt.isIronFail) pts -= 1;
-                        
                         const medal = olympicMedals[p.id];
                         if (medal) {
                             let mPt = opt.reverse ? MEDAL_REVERSE_PTS[medal] : MEDAL_PTS[medal];
@@ -481,17 +519,12 @@
                             const cnts = getPlayerMedalStats(p.id, medal);
                             ['diamond', 'gold', 'silver', 'bronze', 'iron'].forEach(t => { if (cnts[t] > 0 && cnts[t] % 4 === 0) pts += (MEDAL_PTS[t] * 4); });
                         }
-                        if (opt.straight) {
-                            pts += (getPlayerMedalStats(p.id, medal)['diamond'] > 0 ? 15 : 10);
-                        }
+                        if (opt.straight) { pts += (getPlayerMedalStats(p.id, medal)['diamond'] > 0 ? 15 : 10); }
                         if (par === 3 && opt.near) {
                             let valid = !opt.reverse && !players.some(o => o.id !== p.id && s(o.id) <= s(p.id));
                             if (valid) pts += 3;
                         }
-                        
-                        // 手動調整分（ローカルルール等）を加算
                         pts += (parseInt(opt.manualAdj) || 0);
-
                         olympicPoints[p.id] = pts;
                     });
                 }
@@ -581,14 +614,10 @@
                                                     <button className={`opt-btn ${opt.four ? 'achieved' : ''}`} disabled>4カード</button>
                                                     <button className={`opt-btn ${opt.straight ? 'achieved' : ''}`} disabled>ストレート</button>
                                                 </div>
-                                                {/* 手動調整入力（ローカルルール枠） */}
                                                 <div className="mt-2 flex items-center gap-2 justify-end">
                                                     <label className="text-[10px] font-bold text-gray-400">ローカルルール:</label>
                                                     <input 
-                                                        type="tel" 
-                                                        inputMode="numeric"
-                                                        placeholder="±"
-                                                        value={opt.manualAdj}
+                                                        type="tel" inputMode="numeric" placeholder="±" value={opt.manualAdj}
                                                         onChange={(e) => handleManualAdjChange(p.id, e.target.value)}
                                                         className="w-16 text-center text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded py-1 outline-none focus:ring-1 focus:ring-yellow-500"
                                                     />
@@ -601,15 +630,9 @@
                         </div>
                     )}
 
-                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
-                        計算する
-                    </button>
-
+                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">計算する</button>
                     <HistorySection game={game} players={players} />
-
-                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
-                        ゲームを終了して結果を見る
-                    </button>
+                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">ゲームを終了して結果を見る</button>
 
                     {showFinal && (
                          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
@@ -617,33 +640,27 @@
                                 <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
                                 <h3 className="text-gray-800 text-xl font-black mb-6 mt-4 tracking-tighter">本日の最終結果発表</h3>
                                 <div className="space-y-4 mb-8 max-h-[60vh] overflow-y-auto no-scrollbar">
-                                    
                                     {game.settings.vegas && (
                                         <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
-                                            <h4 className="text-[10px] font-bold text-blue-600 mb-3 uppercase tracking-widest border-b border-blue-200 pb-1">Vegas Results</h4>
+                                            <h4 className="text-[10px] font-bold text-blue-600 mb-3 uppercase border-b border-blue-200 pb-1">Vegas Results</h4>
                                             <div className="space-y-2">
                                                 {players.map(p => (
                                                     <div key={p.id} className="flex justify-between items-center text-sm font-bold">
                                                         <span className="text-gray-600">{p.name}</span>
-                                                        <span className={game.totalVegasPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>
-                                                            {game.totalVegasPoints[p.id] > 0 ? '+' : ''}{game.totalVegasPoints[p.id]}
-                                                        </span>
+                                                        <span className={game.totalVegasPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>{game.totalVegasPoints[p.id] > 0 ? '+' : ''}{game.totalVegasPoints[p.id]}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-
                                     {game.settings.olympic && (
                                         <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100">
-                                            <h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase tracking-widest border-b border-yellow-200 pb-1">Olympic Results</h4>
+                                            <h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase border-b border-yellow-200 pb-1">Olympic Results</h4>
                                             <div className="space-y-2">
                                                 {players.map(p => (
                                                     <div key={p.id} className="flex justify-between items-center text-sm font-bold">
                                                         <span className="text-gray-600">{p.name}</span>
-                                                        <span className={game.totalOlympicPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>
-                                                            {game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]}
-                                                        </span>
+                                                        <span className={game.totalOlympicPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>{game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -680,7 +697,7 @@
                 <div className="space-y-6 mt-6">
                     {game.settings.vegas && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase tracking-widest border-l-4 border-blue-500 pl-2">Vegas Hole History</h3>
+                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
                             <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
                                 <table className="w-full text-center border-collapse min-w-[300px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-500"><th className="p-2 text-[10px] bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-[10px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
@@ -696,7 +713,7 @@
                     )}
                     {game.settings.olympic && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase tracking-widest border-l-4 border-yellow-500 pl-2">Olympic Hole History</h3>
+                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
                             <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
                                 <table className="w-full text-center border-collapse min-w-[300px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-500"><th className="p-2 text-[10px] bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-[10px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
