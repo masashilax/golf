@@ -216,7 +216,8 @@
                                         </div>
                                         <button onClick={(e) => {
                                             e.stopPropagation();
-                                            if(window.confirm('この履歴を削除しますか？')) onDelete(e, game.id);
+                                            // confirmダイアログを削除し独自の確認にするのが理想ですが、削除は確認が必要です
+                                            onDelete(e, game.id);
                                         }} className="text-gray-300 hover:text-red-500 p-2 -mr-2 -mt-2">
                                             <i className="fa-solid fa-trash"></i>
                                         </button>
@@ -289,6 +290,13 @@
                 setPlayerData(newData);
             };
 
+            const resetPlayers = () => setPlayerData([
+                { name: '松本洋介', order: 1 },
+                { name: '', order: 2 },
+                { name: '', order: 3 },
+                { name: '', order: 4 }
+            ]);
+
             return (
                 <div className="bg-white rounded-2xl shadow-sm p-5 space-y-6">
                     <h2 className="text-lg font-bold text-center border-b pb-3 text-gray-700">新規ゲーム設定</h2>
@@ -323,6 +331,7 @@
                         <div>
                             <div className="flex justify-between items-end mb-2">
                                 <label className="block text-xs font-bold text-gray-500 uppercase ml-1">メンバーと初期打順</label>
+                                <button onClick={resetPlayers} className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition"><i className="fa-solid fa-rotate-left mr-1"></i>クリア</button>
                             </div>
                             <div className="space-y-4">
                                 {playerData.map((p, i) => (
@@ -606,8 +615,8 @@
                     </button>
 
                     {game.scores.length > 0 && (
-                        <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 bg-white text-gray-400 text-xs font-bold py-3 rounded-xl border border-gray-200 btn-press">
-                            <i className="fa-solid fa-rotate-left mr-1"></i> 1つ前のホールを修正
+                        <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 bg-red-50 text-red-600 text-[11px] font-bold py-3 rounded-xl border border-red-200 btn-press flex items-center justify-center gap-1.5 shadow-sm">
+                            <i className="fa-solid fa-rotate-left"></i> 1つ前のホールを修正する
                         </button>
                     )}
 
@@ -617,16 +626,17 @@
                         ゲームを終了して結果を見る
                     </button>
 
-                    {/* やり直し確認モーダル */}
                     {undoConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
-                                <i className="fa-solid fa-triangle-exclamation text-yellow-500 text-4xl mb-4"></i>
-                                <h3 className="text-gray-800 text-lg font-bold mb-2">ホールのやり直し</h3>
-                                <p className="text-gray-500 text-sm mb-6">1つ前のホールの計算結果を取り消して、入力をやり直しますか？</p>
+                                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl"></i>
+                                </div>
+                                <h3 className="text-gray-800 text-lg font-black mb-2">ホールのやり直し</h3>
+                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">1つ前のホールの計算結果を取り消して、入力をやり直しますか？</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setUndoConfirm(false)} className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
-                                    <button onClick={handleUndoLastHole} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold shadow-lg btn-press">実行する</button>
+                                    <button onClick={() => setUndoConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
+                                    <button onClick={handleUndoLastHole} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">実行する</button>
                                 </div>
                             </div>
                         </div>
