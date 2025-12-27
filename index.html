@@ -645,8 +645,8 @@
                                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl"></i>
                                 </div>
-                                <h3 className="text-gray-800 text-lg font-black mb-2">ホールのやり直し</h3>
-                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">前のホールの入力をやり直しますか？</p>
+                                <h3 className="text-gray-800 text-lg font-black mb-2">スコアの修正</h3>
+                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">前のホールの入力を修正しますか？</p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setUndoConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
                                     <button onClick={handleUndoLastHole} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">修正する</button>
@@ -691,7 +691,7 @@
                                 <div className="flex gap-3 px-4 pb-4">
                                 　
                                     <button onClick={() => onBack()} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button>
-   <button onClick={() => setShowFinal(false)} className="flex-1 py-4 bg-gray-100 text-green-500 rounded-2xl font-bold btn-press">再開する</button>
+   <button onClick={() => setShowFinal(false)} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-md btn-press">再開する</button>
                                 </div>
                             </div>
                         </div>
