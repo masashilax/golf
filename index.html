@@ -229,15 +229,19 @@
                                             return (
                                                 <div key={i} className="text-[10px] text-gray-500 flex justify-between border-b border-gray-50 pb-0.5">
                                                     <span className="font-bold text-gray-700 truncate mr-1">{p.name}</span>
-                                                    <span className="flex gap-1.5">
+                                                    <span className="flex gap-1.5 text-gray-500">
                                                         {game.settings?.vegas && (
-                                                            <span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
-                                                                V:{vP > 0 ? '+' : ''}{vP}
+                                                            <span>
+                                                                V:<span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                    {vP > 0 ? '+' : ''}{vP}
+                                                                </span>
                                                             </span>
                                                         )}
                                                         {game.settings?.olympic && (
-                                                            <span className={oP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
-                                                                O:{oP > 0 ? '+' : ''}{oP}
+                                                            <span>
+                                                                O:<span className={oP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                    {oP > 0 ? '+' : ''}{oP}
+                                                                </span>
                                                             </span>
                                                         )}
                                                     </span>
