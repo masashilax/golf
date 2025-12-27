@@ -226,7 +226,7 @@
                                             return (
                                                 <div key={i} className="text-[10px] text-gray-500 flex justify-between border-b border-gray-50 pb-0.5">
                                                     <span className="font-bold text-gray-700 truncate mr-1">{p.name}</span>
-                                                    <span className="flex gap-1.5">
+                                                    <span className="flex gap-1.5 text-gray-500">
                                                         {game.settings?.vegas && (
                                                             <span>
                                                                 V:<span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
@@ -345,7 +345,8 @@
             const initialOpts = {
                 rod: false, sand: false, near: false, reverse: false, 
                 birdie: false, eagle: false, four: false, straight: false,
-                rodState: 0, isIronFail: false
+                rodState: 0, isIronFail: false,
+                manualAdj: '' // ローカルルール調整用
             };
             const [playerOptions, setPlayerOptions] = useState({
                 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts }
@@ -422,6 +423,13 @@
                 }));
             };
 
+            const handleManualAdjChange = (pId, value) => {
+                setPlayerOptions(prev => ({
+                    ...prev,
+                    [pId]: { ...prev[pId], manualAdj: value }
+                }));
+            };
+
             const toggleRod = (pId) => {
                 setPlayerOptions(prev => {
                     const current = prev[pId].rodState;
@@ -480,6 +488,10 @@
                             let valid = !opt.reverse && !players.some(o => o.id !== p.id && s(o.id) <= s(p.id));
                             if (valid) pts += 3;
                         }
+                        
+                        // 手動調整分（ローカルルール等）を加算
+                        pts += (parseInt(opt.manualAdj) || 0);
+
                         olympicPoints[p.id] = pts;
                     });
                 }
@@ -568,6 +580,18 @@
                                                     <button className={`opt-btn ${opt.eagle ? 'active-gold' : ''}`} disabled>イーグル</button>
                                                     <button className={`opt-btn ${opt.four ? 'achieved' : ''}`} disabled>4カード</button>
                                                     <button className={`opt-btn ${opt.straight ? 'achieved' : ''}`} disabled>ストレート</button>
+                                                </div>
+                                                {/* 手動調整入力（ローカルルール枠） */}
+                                                <div className="mt-2 flex items-center gap-2 justify-end">
+                                                    <label className="text-[10px] font-bold text-gray-400">ローカルルール:</label>
+                                                    <input 
+                                                        type="tel" 
+                                                        inputMode="numeric"
+                                                        placeholder="±"
+                                                        value={opt.manualAdj}
+                                                        onChange={(e) => handleManualAdjChange(p.id, e.target.value)}
+                                                        className="w-16 text-center text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded py-1 outline-none focus:ring-1 focus:ring-yellow-500"
+                                                    />
                                                 </div>
                                             </div>
                                         );
