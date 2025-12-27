@@ -163,6 +163,7 @@
                             <GameScreen 
                                 game={activeGame} 
                                 onUpdate={updateGame}
+                                onBack={() => setView('HOME')}
                             />
                         )}
                     </div>
@@ -284,10 +285,11 @@
         };
 
         // --- 3. ゲームプレイ画面 ---
-        const GameScreen = ({ game, onUpdate }) => {
+        const GameScreen = ({ game, onUpdate, onBack }) => {
             const [par, setPar] = useState(4);
             const [scores, setScores] = useState({0:'', 1:'', 2:'', 3:''});
             const [showResult, setShowResult] = useState(null); // 結果モーダル用
+            const [showFinal, setShowFinal] = useState(false); // 終了モーダル用
 
             const players = game.players;
             const currentOrder = game.currentOrder; // [pID, pID, pID, pID]
@@ -499,6 +501,11 @@
                     {/* ★ ホール履歴一覧 ★ */}
                     <HistorySection game={game} players={players} />
 
+                    {/* 終了するボタン */}
+                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-gray-200 text-gray-600 text-lg font-bold py-4 rounded-2xl shadow-sm btn-press tracking-wider hover:bg-gray-300 transition">
+                        ゲームを終了して結果を見る
+                    </button>
+
                     {/* 結果モーダル */}
                     {showResult && (
                         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
@@ -546,6 +553,36 @@
                             </div>
                         </div>
                     )}
+
+                    {/* 終了モーダル */}
+                    {showFinal && (
+                         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl relative">
+                                <div className="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-green-600 to-green-500 rounded-t-3xl"></div>
+                                
+                                <h3 className="text-gray-600 text-xl font-black mb-6 mt-4 tracking-wider">最終結果</h3>
+                                
+                                <div className="space-y-3 mb-8">
+                                    {players.map(p => {
+                                        const pts = game.totalPoints[p.id];
+                                        return (
+                                            <div key={p.id} className="flex justify-between items-center p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                                <div className="font-bold text-gray-700">{p.name}</div>
+                                                <div className={`text-2xl font-black ${pts >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                                    {pts > 0 ? '+' : ''}{pts}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowFinal(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">閉じる</button>
+                                    <button onClick={() => onBack()} className="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold shadow-lg btn-press">一覧へ戻る</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -555,47 +592,51 @@
             if (!game.scores || game.scores.length === 0) return null;
 
             return (
-                <div className="mt-6 bg-white rounded-xl shadow-sm p-4 overflow-x-auto border border-gray-100 no-scrollbar">
+                <div className="mt-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                     <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase ml-1">ホール別結果</h3>
-                    <table className="w-full text-center text-sm border-collapse min-w-[320px]">
-                        <thead>
-                            <tr className="bg-gray-50 text-gray-500">
-                                <th className="p-2 rounded-l text-xs">H</th>
-                                {players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-xs">{p.name}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {game.scores.map((h, i) => {
-                                // 各プレイヤーの勝ち負け点数を計算
-                                const getPoint = (pid) => {
-                                    if (!h.teams) return null; 
-                                    if (h.teams.t1.includes(pid)) return h.result;
-                                    return -h.result;
-                                };
+                    
+                    {/* スクロール領域: 高さ制限 + 縦スクロール */}
+                    <div className="max-h-80 overflow-y-auto no-scrollbar relative">
+                        <table className="w-full text-center text-sm border-collapse min-w-[300px]">
+                            <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                                <tr className="text-gray-500">
+                                    <th className="p-2 pb-3 rounded-l text-xs bg-gray-50/95 backdrop-blur">H</th>
+                                    {players.map(p => <th key={p.id} className="p-2 pb-3 font-bold truncate max-w-[60px] text-xs bg-gray-50/95 backdrop-blur">{p.name}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {game.scores.map((h, i) => {
+                                    // 各プレイヤーの勝ち負け点数を計算
+                                    const getPoint = (pid) => {
+                                        if (!h.teams) return null; 
+                                        if (h.teams.t1.includes(pid)) return h.result;
+                                        return -h.result;
+                                    };
 
-                                return (
-                                    <tr key={i} className="border-b border-gray-50 last:border-0">
-                                        <td className="p-2 font-bold text-gray-400 text-xs">{h.hole}</td>
-                                        {players.map(p => {
-                                            const pt = getPoint(p.id);
-                                            const score = h.scores[p.id];
-                                            const ptClass = pt > 0 ? 'text-blue-600 bg-blue-50' : pt < 0 ? 'text-red-500 bg-red-50' : 'text-gray-400';
-                                            const ptStr = pt > 0 ? `+${pt}` : pt;
-                                            
-                                            return (
-                                                <td key={p.id} className="p-2">
-                                                    <div className="flex flex-col items-center">
-                                                        <div className="font-bold text-gray-800 leading-tight">{score}</div>
-                                                        {pt !== null && <div className={`text-[10px] font-bold px-1.5 rounded mt-0.5 ${ptClass}`}>{ptStr}</div>}
-                                                    </div>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                    return (
+                                        <tr key={i} className="border-b border-gray-50 last:border-0">
+                                            <td className="p-2 font-bold text-gray-400 text-xs">{h.hole}</td>
+                                            {players.map(p => {
+                                                const pt = getPoint(p.id);
+                                                const score = h.scores[p.id];
+                                                const ptClass = pt > 0 ? 'text-blue-600 bg-blue-50' : pt < 0 ? 'text-red-500 bg-red-50' : 'text-gray-400';
+                                                const ptStr = pt > 0 ? `+${pt}` : pt;
+                                                
+                                                return (
+                                                    <td key={p.id} className="p-2">
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="font-bold text-gray-800 leading-tight">{score}</div>
+                                                            {pt !== null && <div className={`text-[10px] font-bold px-1.5 rounded mt-0.5 ${ptClass}`}>{ptStr}</div>}
+                                                        </div>
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             );
         };
