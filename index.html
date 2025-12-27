@@ -157,7 +157,6 @@
                             <NewGameScreen 
                                 onCancel={() => setView('HOME')} 
                                 onCreate={createGame} 
-                                lastPlayers={games.length > 0 ? games[0].players.map(p=>p.name) : null}
                             />
                         )}
                         {view === 'GAME' && activeGame && (
@@ -213,13 +212,15 @@
         };
 
         // --- 2. 新規ゲーム設定画面 ---
-        const NewGameScreen = ({ onCancel, onCreate, lastPlayers }) => {
+        const NewGameScreen = ({ onCancel, onCreate }) => {
             const [course, setCourse] = useState('');
             const [date, setDate] = useState(getToday());
-            const [pNames, setPNames] = useState(lastPlayers || ['松本洋介', '', '', '']);
+            // 初期値を変更: お父さん以外は空欄
+            const [pNames, setPNames] = useState(['お父さん', '', '', '']);
 
             const handleSubmit = () => {
                 if (!course) { alert('ゴルフ場名を入力してください'); return; }
+                // 未入力の場合は自動的に「プレイヤーN」にする
                 const players = pNames.map((name, i) => ({ id: i, name: name || `プレイヤー${i+1}` }));
                 onCreate({ date, course, players });
             };
@@ -228,6 +229,11 @@
                 const newNames = [...pNames];
                 newNames[idx] = val;
                 setPNames(newNames);
+            };
+
+            // 名前リセット機能（初期状態に戻す）
+            const resetNames = () => {
+                setPNames(['お父さん', '', '', '']);
             };
 
             return (
@@ -246,12 +252,23 @@
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">メンバー</label>
+                            <div className="flex justify-between items-end mb-2">
+                                <label className="block text-xs font-bold text-gray-500 uppercase">メンバー</label>
+                                <button onClick={resetNames} className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition">
+                                    <i className="fa-solid fa-rotate-left mr-1"></i>クリア
+                                </button>
+                            </div>
                             <div className="space-y-2">
                                 {pNames.map((name, i) => (
                                     <div key={i} className="flex items-center gap-2">
                                         <span className="w-6 text-center text-gray-400 font-bold text-sm">{i+1}</span>
-                                        <input type="text" value={name} onChange={(e) => updateName(i, e.target.value)} className="flex-1 p-2.5 bg-gray-50 rounded-lg text-gray-800 font-medium outline-none focus:ring-2 ring-green-500" />
+                                        <input 
+                                            type="text" 
+                                            value={name} 
+                                            onChange={(e) => updateName(i, e.target.value)} 
+                                            placeholder={i === 0 ? "" : "名前を入力"}
+                                            className="flex-1 p-2.5 bg-gray-50 rounded-lg text-gray-800 font-medium outline-none focus:ring-2 ring-green-500" 
+                                        />
                                     </div>
                                 ))}
                             </div>
