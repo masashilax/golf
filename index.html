@@ -7,7 +7,7 @@
     <!-- iOS Web App settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="V & O Golf">
+    <meta name="apple-mobile-web-app-title" content="Vegas Golf">
     <meta name="format-detection" content="telephone=no">
 
     <title>ラスベガス・ゴルフ計算機</title>
@@ -229,9 +229,17 @@
                                             return (
                                                 <div key={i} className="text-[10px] text-gray-500 flex justify-between border-b border-gray-50 pb-0.5">
                                                     <span className="font-bold text-gray-700 truncate mr-1">{p.name}</span>
-                                                    <span>
-                                                        {game.settings?.vegas && `V:${vP > 0 ? '+' : ''}${vP} `}
-                                                        {game.settings?.olympic && `O:${oP > 0 ? '+' : ''}${oP}`}
+                                                    <span className="flex gap-1.5">
+                                                        {game.settings?.vegas && (
+                                                            <span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                V:{vP > 0 ? '+' : ''}{vP}
+                                                            </span>
+                                                        )}
+                                                        {game.settings?.olympic && (
+                                                            <span className={oP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
+                                                                O:{oP > 0 ? '+' : ''}{oP}
+                                                            </span>
+                                                        )}
                                                     </span>
                                                 </div>
                                             );
@@ -322,7 +330,8 @@
             const [par, setPar] = useState(4);
             const [scores, setScores] = useState({0:'', 1:'', 2:'', 3:''});
             const [showFinal, setShowFinal] = useState(false);
-            const [showOlympic, setShowOlympic] = useState(false);
+            // オリンピックが選ばれていたら初期状態で開く
+            const [showOlympic, setShowOlympic] = useState(game.settings.olympic);
             const [olympicMedals, setOlympicMedals] = useState({}); 
             
             const initialOpts = {
@@ -413,14 +422,12 @@
                 });
             };
 
-            // 直接計算して保存する関数（Confirmationモーダルなし）
             const handleCalculateAndSave = () => {
                 for(let i=0; i<4; i++) { if(scores[i] === '') { alert('全員のスコアを入力してください'); return; } }
                 
                 const s = (pid) => parseInt(scores[pid]);
                 let vegasDiff = 0, olympicPoints = {0:0, 1:0, 2:0, 3:0};
 
-                // ベガス計算
                 if (game.settings.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
                     let p1 = Math.min(...t1S) * 10 + Math.max(...t1S), p2 = Math.min(...t2S) * 10 + Math.max(...t2S);
@@ -436,7 +443,6 @@
                     vegasDiff = (raw >= 0 ? Math.ceil(Math.abs(raw) / 5) * 5 : -Math.ceil(Math.abs(raw) / 5) * 5);
                 }
 
-                // オリンピック計算
                 if (game.settings.olympic) {
                     const hasDiamond = !!takenMedals['diamond'];
                     players.forEach(p => {
@@ -470,7 +476,6 @@
                     });
                 }
 
-                // 状態更新
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
                 players.forEach(p => {
                     if (game.settings.vegas) newVegasTotal[p.id] += (team1.includes(p.id) ? vegasDiff : -vegasDiff);
@@ -488,11 +493,10 @@
                     totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory 
                 });
 
-                // リセット
                 setScores({0:'', 1:'', 2:'', 3:''}); 
                 setOlympicMedals({});
                 setPlayerOptions({ 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts } });
-                setShowOlympic(false); 
+                setShowOlympic(game.settings.olympic); // 次のホールも設定に従って開閉
                 setPar(4);
             };
 
@@ -565,7 +569,6 @@
                         </div>
                     )}
 
-                    {/* 計算するボタン（Confirmationなしで即保存） */}
                     <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
                         計算する
                     </button>
