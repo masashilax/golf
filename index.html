@@ -124,14 +124,23 @@
                 <div className="max-w-md mx-auto min-h-screen bg-gray-100 flex flex-col">
                     {/* ヘッダー */}
                     <div className="bg-green-700 text-white p-4 pt-4 shadow-lg sticky top-0 z-50 flex justify-between items-center">
-                        <h1 className="text-xl font-bold flex items-center gap-2">
+                        <h1 className="text-lg font-bold flex items-center gap-2 truncate mr-2">
                             <i className="fa-solid fa-golf-ball-tee"></i> Vegas Golf
                         </h1>
-                        {view !== 'HOME' && (
-                            <button onClick={() => setView('HOME')} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900">
-                                一覧へ
+                        <div className="flex gap-2 items-center flex-shrink-0">
+                            {view !== 'HOME' && (
+                                <button onClick={() => setView('HOME')} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50">
+                                    一覧へ
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50" 
+                                title="再読み込み"
+                            >
+                                <i className="fa-solid fa-rotate-right"></i>
                             </button>
-                        )}
+                        </div>
                     </div>
 
                     {/* コンテンツ */}
