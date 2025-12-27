@@ -216,7 +216,7 @@
             const [course, setCourse] = useState('');
             const [date, setDate] = useState(getToday());
             // 初期値を変更: お父さん以外は空欄
-            const [pNames, setPNames] = useState(['お父さん', '', '', '']);
+            const [pNames, setPNames] = useState(['松本洋介', '', '', '']);
 
             const handleSubmit = () => {
                 if (!course) { alert('ゴルフ場名を入力してください'); return; }
@@ -233,7 +233,7 @@
 
             // 名前リセット機能（初期状態に戻す）
             const resetNames = () => {
-                setPNames(['お父さん', '', '', '']);
+                setPNames(['松本洋介', '', '', '']);
             };
 
             return (
