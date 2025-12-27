@@ -207,7 +207,7 @@
         const NewGameScreen = ({ onCancel, onCreate, lastPlayers }) => {
             const [course, setCourse] = useState('');
             const [date, setDate] = useState(getToday());
-            const [pNames, setPNames] = useState(lastPlayers || ['お父さん', 'Aさん', 'Bさん', 'Cさん']);
+            const [pNames, setPNames] = useState(lastPlayers || ['松本洋介', '', '', '']);
 
             const handleSubmit = () => {
                 if (!course) { alert('ゴルフ場名を入力してください'); return; }
