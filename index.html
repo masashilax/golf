@@ -109,6 +109,12 @@
         }
         input:checked + .slider { background-color: #16a34a; }
         input:checked + .slider:before { transform: translateX(20px); }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -124,6 +130,12 @@
             const [view, setView] = useState('HOME');
             const [games, setGames] = useState([]);
             const [activeGameId, setActiveGameId] = useState(null);
+
+            // 画面遷移時にトップへスクロールする共通関数
+            const navigateTo = (nextView) => {
+                setView(nextView);
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            };
 
             useEffect(() => {
                 const saved = localStorage.getItem('golf_vegas_data');
@@ -150,7 +162,7 @@
                 };
                 setGames([newGame, ...games]);
                 setActiveGameId(newGame.id);
-                setView('GAME');
+                navigateTo('GAME');
             };
 
             const updateGame = (updatedGame) => {
@@ -160,8 +172,8 @@
 
             const deleteGame = (e, id) => {
                 e.stopPropagation();
-                setView('HOME');
                 setGames(games.filter(g => g.id !== id));
+                navigateTo('HOME');
             };
 
             const activeGame = games.find(g => g.id === activeGameId);
@@ -174,7 +186,7 @@
                         </h1>
                         <div className="flex gap-2 items-center flex-shrink-0">
                             {view !== 'HOME' && (
-                                <button onClick={() => setView('HOME')} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50">
+                                <button onClick={() => navigateTo('HOME')} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50">
                                     一覧へ
                                 </button>
                             )}
@@ -186,13 +198,13 @@
 
                     <div className="flex-1 p-4 pb-24 safe-area-bottom">
                         {view === 'HOME' && (
-                            <HomeScreen games={games} onNew={() => setView('NEW')} onSelect={(id) => { setActiveGameId(id); setView('GAME'); }} onDelete={deleteGame} />
+                            <HomeScreen games={games} onNew={() => navigateTo('NEW')} onSelect={(id) => { setActiveGameId(id); navigateTo('GAME'); }} onDelete={deleteGame} />
                         )}
                         {view === 'NEW' && (
-                            <NewGameScreen onCancel={() => setView('HOME')} onCreate={createGame} />
+                            <NewGameScreen onCancel={() => navigateTo('HOME')} onCreate={createGame} />
                         )}
                         {view === 'GAME' && activeGame && (
-                            <GameScreen game={activeGame} onUpdate={updateGame} onBack={() => setView('HOME')} />
+                            <GameScreen game={activeGame} onUpdate={updateGame} onBack={() => navigateTo('HOME')} />
                         )}
                     </div>
                 </div>
@@ -373,6 +385,7 @@
             const [showOlympic, setShowOlympic] = useState(game.settings.olympic);
             const [olympicMedals, setOlympicMedals] = useState({}); 
             const [undoConfirm, setUndoConfirm] = useState(false); 
+            const [showEndConfirm, setShowEndConfirm] = useState(false); 
             
             const initialOpts = {
                 rod: false, sand: false, near: false, reverse: false, 
@@ -448,10 +461,7 @@
             };
 
             const handleManualAdjChange = (pId, value) => {
-                // よくあるマイナス系記号（全角マイナス、長音符など）を半角マイナスに自動置換
                 let normalized = value.replace(/[－ー−—]/g, '-');
-                
-                // バリデーション: 空文字、マイナスのみ、あるいは数値（オプションで先頭マイナス）
                 if (normalized === '' || normalized === '-' || /^-?\d*$/.test(normalized)) {
                     setPlayerOptions(prev => ({ ...prev, [pId]: { ...prev[pId], manualAdj: normalized } }));
                 }
@@ -521,6 +531,7 @@
                 setScores({0:'', 1:'', 2:'', 3:''}); setOlympicMedals({});
                 setPlayerOptions({ 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts } });
                 setShowOlympic(game.settings.olympic); setPar(4);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const handleUndoLastHole = () => {
@@ -635,12 +646,13 @@
 
                     <HistorySection game={game} players={players} />
 
-                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
+                    <button onClick={() => { setShowFinal(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full mt-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
                         現在までの結果を見る
                     </button>
 
+                    {/* スコア修正確認モーダル */}
                     {undoConfirm && (
-                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[110] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
                                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl"></i>
@@ -655,6 +667,7 @@
                         </div>
                     )}
 
+                    {/* 結果一覧モーダル */}
                     {showFinal && (
                          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl relative overflow-hidden">
@@ -689,9 +702,25 @@
                                     )}
                                 </div>
                                 <div className="flex gap-3 px-4 pb-4">
-                                　
-                                    <button onClick={() => onBack()} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button>
-   <button onClick={() => setShowFinal(false)} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-md btn-press">再開する</button>
+                                    <button onClick={() => setShowEndConfirm(true)} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button>
+                                    <button onClick={() => setShowFinal(false)} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">再開する</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 終了確認モーダル */}
+                    {showEndConfirm && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
+                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i className="fa-solid fa-circle-info text-red-500 text-3xl"></i>
+                                </div>
+                                <h3 className="text-gray-800 text-lg font-black mb-2">ゲームの終了</h3>
+                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">今回のゲームを終了して<br/>ホーム画面に戻りますか？</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowEndConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
+                                    <button onClick={onBack} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button>
                                 </div>
                             </div>
                         </div>
