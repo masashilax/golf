@@ -63,6 +63,13 @@
         .opt-btn.active-red { background: #fef2f2; border-color: #ef4444; color: #dc2626; font-weight: bold; }
         .opt-btn.active-gold { background: #fefce8; border-color: #eab308; color: #a16207; font-weight: bold; }
         
+        .opt-btn.placeholder {
+            border-style: dashed;
+            background: transparent;
+            color: #d1d5db;
+            opacity: 0.6;
+        }
+
         .opt-btn.achieved { 
             background: linear-gradient(135deg, #fef9c3 0%, #facc15 100%); 
             border-color: #eab308; 
@@ -131,7 +138,6 @@
             const [games, setGames] = useState([]);
             const [activeGameId, setActiveGameId] = useState(null);
 
-            // 画面遷移時にトップへスクロールする共通関数
             const navigateTo = (nextView) => {
                 setView(nextView);
                 window.scrollTo({ top: 0, behavior: 'instant' });
@@ -153,7 +159,7 @@
                     course: setupData.course,
                     players: setupData.players,
                     scores: [],
-                    currentHole: 1,
+                    currentHole: setupData.startHole || 1,
                     currentOrder: setupData.currentOrder || [0, 1, 2, 3],
                     totalVegasPoints: {0:0, 1:0, 2:0, 3:0},
                     totalOlympicPoints: {0:0, 1:0, 2:0, 3:0},
@@ -190,7 +196,7 @@
                                     一覧へ
                                 </button>
                             )}
-                            <button onClick={() => window.location.reload()} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50" title="再読み込み">
+                            <button onClick={() => window.location.reload()} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50">
                                 <i className="fa-solid fa-rotate-right"></i>
                             </button>
                         </div>
@@ -218,50 +224,71 @@
                         <h2 className="text-gray-500 text-xs font-bold mb-3 uppercase tracking-wider ml-1">履歴 ({games.length})</h2>
                         {games.length === 0 && <p className="text-center text-gray-400 py-12 bg-white rounded-xl border border-dashed border-gray-300">履歴がありません</p>}
                         <div className="space-y-3">
-                            {games.map(game => (
-                                <div key={game.id} onClick={() => onSelect(game.id)} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition cursor-pointer relative overflow-hidden btn-press">
-                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500"></div>
-                                    <div className="flex justify-between items-start pl-3 mb-2">
-                                        <div>
-                                            <h3 className="font-bold text-gray-800 text-lg leading-tight">{game.course || 'コース未設定'}</h3>
-                                            <p className="text-gray-400 text-xs mt-1 font-medium"><i className="far fa-calendar-alt mr-1"></i>{game.date}</p>
+                            {games.map(game => {
+                                // 合計規定打数の計算
+                                const totalPar = game.scores.reduce((sum, h) => sum + h.par, 0);
+
+                                return (
+                                    <div key={game.id} onClick={() => onSelect(game.id)} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition cursor-pointer relative overflow-hidden btn-press">
+                                        <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500"></div>
+                                        <div className="flex justify-between items-start pl-3 mb-2">
+                                            <div>
+                                                <h3 className="font-bold text-gray-800 text-lg leading-tight">
+                                                    {game.course || 'コース未設定'}
+                                                    {totalPar > 0 && <span className="ml-2 text-xs text-gray-400 font-normal italic">Par {totalPar}</span>}
+                                                </h3>
+                                                <p className="text-gray-400 text-xs mt-1 font-medium"><i className="far fa-calendar-alt mr-1"></i>{game.date}</p>
+                                            </div>
+                                            <button onClick={(e) => {
+                                                e.stopPropagation();
+                                                if(window.confirm('この履歴を削除しますか？')) onDelete(e, game.id);
+                                            }} className="text-gray-300 hover:text-red-500 p-2 -mr-2 -mt-2">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
                                         </div>
-                                        <button onClick={(e) => {
-                                            e.stopPropagation();
-                                            if(window.confirm('この履歴を削除しますか？')) onDelete(e, game.id);
-                                        }} className="text-gray-300 hover:text-red-500 p-2 -mr-2 -mt-2">
-                                            <i className="fa-solid fa-trash"></i>
-                                        </button>
-                                    </div>
-                                    <div className="pl-3 grid grid-cols-2 gap-x-4 gap-y-1">
-                                        {game.players.map((p, i) => {
-                                            const vP = game.totalVegasPoints ? game.totalVegasPoints[p.id] : 0;
-                                            const oP = game.totalOlympicPoints ? game.totalOlympicPoints[p.id] : 0;
-                                            return (
-                                                <div key={i} className="text-[10px] text-gray-500 flex justify-between border-b border-gray-50 pb-0.5">
-                                                    <span className="font-bold text-gray-700 truncate mr-1">{p.name}</span>
-                                                    <span className="flex gap-1.5">
-                                                        {game.settings?.vegas && (
-                                                            <span>
-                                                                V:<span className={vP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
-                                                                    {vP > 0 ? '+' : ''}{vP}
+                                        {/* 2行2列のグリッドレイアウト */}
+                                        <div className="pl-3 grid grid-cols-2 gap-x-2 gap-y-2">
+                                            {game.players.map((p, i) => {
+                                                const vP = game.totalVegasPoints ? game.totalVegasPoints[p.id] : 0;
+                                                const oP = game.totalOlympicPoints ? game.totalOlympicPoints[p.id] : 0;
+                                                const totalStrokes = game.scores.reduce((sum, h) => sum + parseInt(h.scores[p.id] || 0), 0);
+                                                const diff = totalStrokes - totalPar;
+                                                const diffText = diff === 0 ? 'E' : (diff > 0 ? '+' + diff : diff);
+                                                const diffColorClass = diff === 0 ? 'text-gray-500' : (diff > 0 ? 'text-red-500' : 'text-blue-600');
+
+                                                return (
+                                                    <div key={i} className="text-[10px] text-gray-500 border-b border-gray-50 pb-1 flex flex-col">
+                                                        <span className="font-bold text-gray-700 truncate mb-0.5">{p.name}</span>
+                                                        <div className="flex flex-wrap gap-x-2">
+                                                            {game.settings?.vegas && (
+                                                                <span className="whitespace-nowrap">
+                                                                    <span className="font-bold text-gray-900">V:</span>
+                                                                    <span className={vP >= 0 ? (vP === 0 ? 'text-gray-500' : 'text-blue-600 font-bold') : 'text-red-500 font-bold'}>
+                                                                        {vP > 0 ? '+' : ''}{vP}
+                                                                    </span>
                                                                 </span>
-                                                            </span>
-                                                        )}
-                                                        {game.settings?.olympic && (
-                                                            <span>
-                                                                O:<span className={oP >= 0 ? 'text-blue-600 font-bold' : 'text-red-500 font-bold'}>
-                                                                    {oP > 0 ? '+' : ''}{oP}
+                                                            )}
+                                                            {game.settings?.olympic && (
+                                                                <span className="whitespace-nowrap">
+                                                                    <span className="font-bold text-gray-900">O:</span>
+                                                                    <span className={oP >= 0 ? (oP === 0 ? 'text-gray-500' : 'text-blue-600 font-bold') : 'text-red-500 font-bold'}>
+                                                                        {oP > 0 ? '+' : ''}{oP}
+                                                                    </span>
                                                                 </span>
+                                                            )}
+                                                            <span className="whitespace-nowrap">
+                                                                <span className="font-bold text-gray-900">T:</span>
+                                                                <span className="text-gray-800 font-bold">{totalStrokes}</span> 
+                                                                <span className={`ml-0.5 font-bold ${diffColorClass}`}>({diffText})</span>
                                                             </span>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -279,6 +306,7 @@
         const NewGameScreen = ({ onCancel, onCreate }) => {
             const [course, setCourse] = useState('');
             const [date, setDate] = useState(getToday());
+            const [startSide, setStartSide] = useState('OUT');
             const [playerData, setPlayerData] = useState([
                 { name: '松本洋介', order: 1 },
                 { name: '', order: 2 },
@@ -292,7 +320,8 @@
                 if (!settings.vegas && !settings.olympic) { alert('ゲームモードを選択してください'); return; }
                 const players = playerData.map((p, i) => ({ id: i, name: p.name || `プレイヤー${i+1}` }));
                 const currentOrder = [0, 1, 2, 3].sort((a, b) => playerData[a].order - playerData[b].order);
-                onCreate({ date, course, players, settings, currentOrder });
+                const startHole = startSide === 'OUT' ? 1 : 10;
+                onCreate({ date, course, players, settings, currentOrder, startHole });
             };
 
             const updatePlayer = (idx, field, val) => {
@@ -318,24 +347,44 @@
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゴルフ場名</label>
-                            <input type="text" placeholder="例：〇〇カントリー" value={course} onChange={(e) => setCourse(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 placeholder-gray-300 h-12" />
+                            <input type="text" placeholder="" value={course} onChange={(e) => setCourse(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" />
                         </div>
                         
-                        <div className="bg-gray-50 p-4 rounded-xl space-y-3 border border-gray-100">
+                        <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゲームモード</label>
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-bold text-gray-700">ラスベガス (チーム戦)</span>
-                                <label className="switch">
-                                    <input type="checkbox" checked={settings.vegas} onChange={() => setSettings({...settings, vegas: !settings.vegas})} />
-                                    <span className="slider"></span>
-                                </label>
+                            <div className="bg-gray-50 p-4 rounded-xl space-y-3 border border-gray-100">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-700">ラスベガス (チーム戦)</span>
+                                    <label className="switch">
+                                        <input type="checkbox" checked={settings.vegas} onChange={() => setSettings({...settings, vegas: !settings.vegas})} />
+                                        <span className="slider"></span>
+                                    </label>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span>
+                                    <label className="switch">
+                                        <input type="checkbox" checked={settings.olympic} onChange={() => setSettings({...settings, olympic: !settings.olympic})} />
+                                        <span className="slider"></span>
+                                    </label>
+                                </div>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span>
-                                <label className="switch">
-                                    <input type="checkbox" checked={settings.olympic} onChange={() => setSettings({...settings, olympic: !settings.olympic})} />
-                                    <span className="slider"></span>
-                                </label>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ホール選択</label>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => setStartSide('OUT')}
+                                    className={`flex-1 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 ${startSide === 'OUT' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
+                                >
+                                    OUT <span className="text-[10px] opacity-70">(1番〜)</span>
+                                </button>
+                                <button 
+                                    onClick={() => setStartSide('IN')}
+                                    className={`flex-1 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 ${startSide === 'IN' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
+                                >
+                                    IN <span className="text-[10px] opacity-70">(10番〜)</span>
+                                </button>
                             </div>
                         </div>
 
@@ -385,12 +434,10 @@
             const [showOlympic, setShowOlympic] = useState(game.settings.olympic);
             const [olympicMedals, setOlympicMedals] = useState({}); 
             const [undoConfirm, setUndoConfirm] = useState(false); 
-            const [showEndConfirm, setShowEndConfirm] = useState(false); 
             
             const initialOpts = {
-                rod: false, sand: false, near: false, reverse: false, 
-                birdie: false, eagle: false, four: false, straight: false,
-                rodState: 0, isIronFail: false, manualAdj: ''
+                rodState: 0, sand: false, near: false, reverse: false, 
+                birdie: false, eagle: false, four: false, straight: false, manualAdj: ''
             };
             const [playerOptions, setPlayerOptions] = useState({
                 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts }
@@ -419,7 +466,6 @@
             };
 
             useEffect(() => {
-                if (!game.settings.olympic) return;
                 setPlayerOptions(prev => {
                     const next = { ...prev };
                     game.players.forEach(p => {
@@ -432,7 +478,7 @@
                         });
                         const isStraight = calcStraightSets(counts) > calcStraightSets(prevCounts);
                         const sc = parseInt(scores[p.id]);
-                        next[p.id] = { ...next[p.id], four: isFourCard, straight: isStraight, birdie: (sc === par - 1), eagle: (sc <= par - 2) };
+                        next[p.id] = { ...next[p.id], four: isFourCard, straight: isStraight, birdie: (sc === par - 1), eagle: (sc <= par - 2 && sc > 0) };
                     });
                     return next;
                 });
@@ -455,36 +501,17 @@
                 });
             };
 
-            const toggleOption = (pId, key) => {
-                if (['four', 'straight', 'birdie', 'eagle'].includes(key)) return; 
-                setPlayerOptions(prev => ({ ...prev, [pId]: { ...prev[pId], [key]: !prev[pId][key] } }));
-            };
-
-            const handleManualAdjChange = (pId, value) => {
-                let normalized = value.replace(/[－ー−—]/g, '-');
-                if (normalized === '' || normalized === '-' || /^-?\d*$/.test(normalized)) {
-                    setPlayerOptions(prev => ({ ...prev, [pId]: { ...prev[pId], manualAdj: normalized } }));
-                }
-            };
-
-            const toggleRod = (pId) => {
-                setPlayerOptions(prev => {
-                    const current = prev[pId].rodState;
-                    let next = (current === 0) ? 1 : (current === 1) ? -1 : 0;
-                    return { ...prev, [pId]: { ...prev[pId], rodState: next } };
-                });
-            };
-
             const handleCalculateAndSave = () => {
                 for(let i=0; i<4; i++) { if(scores[i] === '') { alert('全員のスコアを入力してください'); return; } }
                 const s = (pid) => parseInt(scores[pid]);
                 let vegasDiff = 0, olympicPoints = {0:0, 1:0, 2:0, 3:0};
+                
                 if (game.settings.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
                     let p1 = Math.min(...t1S) * 10 + Math.max(...t1S), p2 = Math.min(...t2S) * 10 + Math.max(...t2S);
                     const checkV = (scs) => {
                         const hasE = scs.some(sc => sc <= par - 2), bCount = scs.filter(sc => sc <= par - 1).length;
-                        return { rank: (hasE || bCount === 2) ? 2 : (bCount > 0 ? 1 : 0), hasE };
+                        return { rank: (hasE || bCount === 2) ? 2 : (bCount > 0 ? 1 : 0) };
                     };
                     const res1 = checkV(t1S), res2 = checkV(t2S);
                     let mult = 1;
@@ -493,14 +520,14 @@
                     const raw = (p2 - p1) * mult;
                     vegasDiff = (raw >= 0 ? Math.ceil(Math.abs(raw) / 5) * 5 : -Math.ceil(Math.abs(raw) / 5) * 5);
                 }
+
                 if (game.settings.olympic) {
                     const hasDiamond = !!takenMedals['diamond'];
                     players.forEach(p => {
                         const opt = playerOptions[p.id];
                         let pts = 0;
                         if (opt.eagle) pts += 15; else if (opt.birdie) pts += 3;
-                        if (opt.isSand) pts += 3; if (opt.rodState === 1) pts += 3; else if (opt.rodState === -1) pts -= 3;
-                        if (opt.isIronFail) pts -= 1;
+                        if (opt.sand) pts += 3; if (opt.rodState === 1) pts += 3; else if (opt.rodState === -1) pts -= 3;
                         const medal = olympicMedals[p.id];
                         if (medal) {
                             let mPt = opt.reverse ? MEDAL_REVERSE_PTS[medal] : MEDAL_PTS[medal];
@@ -512,25 +539,46 @@
                             ['diamond', 'gold', 'silver', 'bronze', 'iron'].forEach(t => { if (cnts[t] > 0 && cnts[t] % 4 === 0) pts += (MEDAL_PTS[t] * 4); });
                         }
                         if (opt.straight) { pts += (getPlayerMedalStats(p.id, medal)['diamond'] > 0 ? 15 : 10); }
-                        if (par === 3 && opt.near) {
-                            let valid = !opt.reverse && !players.some(o => o.id !== p.id && s(o.id) <= s(p.id));
-                            if (valid) pts += 3;
-                        }
+                        if (par === 3 && opt.near && !opt.reverse) pts += 3;
                         pts += (parseInt(opt.manualAdj) || 0);
                         olympicPoints[p.id] = pts;
                     });
                 }
+
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
                 players.forEach(p => {
                     if (game.settings.vegas) newVegasTotal[p.id] += (team1.includes(p.id) ? vegasDiff : -vegasDiff);
                     if (game.settings.olympic) newOlympicTotal[p.id] += olympicPoints[p.id];
                 });
+
                 const newOrder = [...currentOrder].sort((a, b) => (s(a) - s(b)) || (currentOrder.indexOf(a) - currentOrder.indexOf(b)));
-                const newHistory = [...game.scores, { hole: game.currentHole, par, vegasDiff, olympicPoints, scores: { ...scores }, teams: { t1: team1, t2: team2 }, medals: { ...olympicMedals }, orderBefore: [...currentOrder] }];
-                onUpdate({ ...game, currentHole: game.currentHole + 1, currentOrder: newOrder, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
+                
+                const achievements = {};
+                players.forEach(p => {
+                    achievements[p.id] = { 
+                        four: playerOptions[p.id].four, 
+                        straight: playerOptions[p.id].straight 
+                    };
+                });
+
+                const newHistory = [...game.scores, { 
+                    hole: game.currentHole, 
+                    par, 
+                    vegasDiff, 
+                    olympicPoints, 
+                    scores: { ...scores }, 
+                    teams: { t1: team1, t2: team2 }, 
+                    medals: { ...olympicMedals }, 
+                    orderBefore: [...currentOrder],
+                    achievements
+                }];
+
+                const nextHole = game.currentHole === 18 ? 1 : game.currentHole + 1;
+
+                onUpdate({ ...game, currentHole: nextHole, currentOrder: newOrder, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
                 setScores({0:'', 1:'', 2:'', 3:''}); setOlympicMedals({});
                 setPlayerOptions({ 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts } });
-                setShowOlympic(game.settings.olympic); setPar(4);
+                setPar(4);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
@@ -549,7 +597,7 @@
                         newOlympicTotal[p.id] -= (lastHole.olympicPoints[p.id] || 0);
                     }
                 });
-                onUpdate({ ...game, currentHole: game.currentHole - 1, currentOrder: lastHole.orderBefore, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
+                onUpdate({ ...game, currentHole: lastHole.hole, currentOrder: lastHole.orderBefore, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
                 setUndoConfirm(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
@@ -567,22 +615,11 @@
                         </div>
                     </div>
 
-                    {game.settings.vegas ? (
-                        <div className="space-y-3">
-                            <TeamCard color="blue" label="チーム A" pIds={team1} players={players} scores={scores} setScores={setScores} par={par} />
-                            <div className="text-center font-bold text-gray-300 text-sm tracking-widest uppercase">vs</div>
-                            <TeamCard color="red" label="チーム B" pIds={team2} players={players} scores={scores} setScores={setScores} par={par} />
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-3">
-                            {players.map(p => (
-                                <div key={p.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
-                                    <div className="text-[10px] font-bold text-gray-500 mb-1">{p.name}</div>
-                                    <input type="tel" inputMode="numeric" placeholder={par} value={scores[p.id]} onChange={(e) => setScores({...scores, [p.id]: e.target.value})} className="w-full text-center text-2xl font-black text-gray-800 bg-gray-50 rounded p-1 outline-none" />
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <div className="space-y-3">
+                        <TeamCard color="blue" label="チーム A" pIds={team1} players={players} scores={scores} setScores={setScores} par={par} />
+                        <div className="text-center font-bold text-gray-300 text-sm tracking-widest uppercase">vs</div>
+                        <TeamCard color="red" label="チーム B" pIds={team2} players={players} scores={scores} setScores={setScores} par={par} />
+                    </div>
 
                     {game.settings.olympic && (
                         <div className="mt-6">
@@ -595,36 +632,41 @@
                                         const medal = olympicMedals[p.id], opt = playerOptions[p.id];
                                         const isIronDisabled = !!takenMedals['diamond'] && medal !== 'iron'; 
                                         const getOther = (type) => (takenMedals[type] !== undefined && takenMedals[type] !== String(p.id)) ? takenMedals[type] : null;
+                                        
+                                        const pastFourCount = game.scores.reduce((acc, h) => acc + (h.achievements?.[p.id]?.four ? 1 : 0), 0);
+                                        const totalFourCount = pastFourCount + (opt.four ? 1 : 0);
+                                        
+                                        const pastStraightCount = game.scores.reduce((acc, h) => acc + (h.achievements?.[p.id]?.straight ? 1 : 0), 0);
+                                        const totalStraightCount = pastStraightCount + (opt.straight ? 1 : 0);
+
                                         return (
                                             <div key={p.id} className="border-b border-gray-100 pb-3 last:border-0">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="text-sm font-bold text-gray-700 w-16 truncate">{p.name}</div>
                                                     <div className="flex gap-1 flex-1 justify-end">
                                                         {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => (
-                                                            <MedalButton key={type} type={type} label={type === 'diamond' ? '💎' : type === 'gold' ? '🥇' : type === 'silver' ? '🥈' : type === 'bronze' ? '🥉' : '🔩'} current={medal} isReverse={opt.reverse} disabled={type === 'iron' ? (isIronDisabled || !!getOther('iron')) : !!getOther(type)} onClick={() => handleMedalClick(p.id, type)} />
+                                                            <MedalButton key={type} type={type} current={medal} disabled={type === 'iron' ? (isIronDisabled || !!getOther('iron')) : !!getOther(type)} onClick={() => handleMedalClick(p.id, type)} />
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div className="opt-grid">
-                                                    <button onClick={() => toggleRod(p.id)} className={`opt-btn ${opt.rodState === 1 ? 'active' : opt.rodState === -1 ? 'active-red' : ''}`}>{opt.rodState === 1 ? '竿成功' : opt.rodState === -1 ? '竿失敗' : '竿イチ'}</button>
-                                                    <button onClick={() => toggleOption(p.id, 'sand')} className={`opt-btn ${opt.sand ? 'active' : ''}`}>砂イチ</button>
-                                                    <button onClick={() => toggleOption(p.id, 'near')} className={`opt-btn ${opt.near ? 'active-gold' : ''}`} disabled={par !== 3}>ニアピン</button>
-                                                    <button onClick={() => toggleOption(p.id, 'reverse')} className={`opt-btn ${opt.reverse ? 'active-red' : ''}`}>逆オリ</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],rodState:v[p.id].rodState===1?-1:v[p.id].rodState===-1?0:1}}))} className={`opt-btn ${opt.rodState===1?'active':opt.rodState===-1?'active-red':''}`}>{opt.rodState===1?'竿成功':opt.rodState===-1?'竿失敗':'竿イチ'}</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id].sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id].near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3}>ニアピン</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id].reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
                                                     <button className={`opt-btn ${opt.birdie ? 'active' : ''}`} disabled>バーディ</button>
                                                     <button className={`opt-btn ${opt.eagle ? 'active-gold' : ''}`} disabled>イーグル</button>
-                                                    <button className={`opt-btn ${opt.four ? 'achieved' : ''}`} disabled>4カード</button>
-                                                    <button className={`opt-btn ${opt.straight ? 'achieved' : ''}`} disabled>ストレート</button>
+                                                    
+                                                    <button className={`opt-btn ${totalFourCount > 0 ? 'achieved' : 'placeholder'}`} disabled>
+                                                        4カード {totalFourCount > 1 ? `x${totalFourCount}` : ''}
+                                                    </button>
+                                                    <button className={`opt-btn ${totalStraightCount > 0 ? 'achieved' : 'placeholder'}`} disabled>
+                                                        ストレート {totalStraightCount > 1 ? `x${totalStraightCount}` : ''}
+                                                    </button>
                                                 </div>
                                                 <div className="mt-2 flex items-center gap-2 justify-end">
                                                     <label className="text-[10px] font-bold text-gray-400">ローカルルール:</label>
-                                                    <input 
-                                                        type="text" 
-                                                        inputMode="text" 
-                                                        placeholder="" 
-                                                        value={opt.manualAdj} 
-                                                        onChange={(e) => handleManualAdjChange(p.id, e.target.value)} 
-                                                        className="w-16 text-center text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded py-1 outline-none focus:ring-1 focus:ring-yellow-500" 
-                                                    />
+                                                    <input type="text" value={opt.manualAdj} onChange={(e) => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],manualAdj:e.target.value.replace(/[^-0-9]/g,'')}}))} className="w-12 text-center text-xs font-bold bg-gray-50 border rounded py-1 outline-none" />
                                                 </div>
                                             </div>
                                         );
@@ -634,31 +676,24 @@
                         </div>
                     )}
 
-                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
-                        計算して次のホールへ
-                    </button>
+                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-500 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press">計算して次のホールへ</button>
 
                     {game.scores.length > 0 && (
-                        <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 bg-red-50 text-red-600 text-[11px] font-bold py-3 rounded-xl border border-red-200 btn-press flex items-center justify-center gap-1.5 shadow-sm">
-                            <i className="fa-solid fa-rotate-left"></i> 1つ前のホールを修正する
-                        </button>
+                        <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 前のホールを修正する</button>
                     )}
 
                     <HistorySection game={game} players={players} />
 
-                    <button onClick={() => { setShowFinal(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full mt-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press tracking-wider">
-                        現在までの結果を見る
-                    </button>
+                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl shadow-sm btn-press">現在までの結果を見る</button>
 
-                    {/* スコア修正確認モーダル */}
                     {undoConfirm && (
-                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[110] animate-fade-in backdrop-blur-sm">
+                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[110] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
                                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl"></i>
                                 </div>
-                                <h3 className="text-gray-800 text-lg font-black mb-2">スコアの修正</h3>
-                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">前のホールの入力を修正しますか？</p>
+                                <h3 className="text-gray-800 text-lg font-black mb-2">修正</h3>
+                                <p className="text-gray-500 text-sm mb-6 leading-relaxed">前のホールの入力を取り消しますか？</p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setUndoConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
                                     <button onClick={handleUndoLastHole} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">修正する</button>
@@ -667,49 +702,212 @@
                         </div>
                     )}
 
-                    {/* 結果一覧モーダル */}
                     {showFinal && (
-                         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
-                                <h3 className="text-gray-800 text-xl font-black mb-6 mt-4 tracking-tighter">結果一覧</h3>
-                                <div className="space-y-4 mb-8 max-h-[60vh] overflow-y-auto no-scrollbar">
-                                    {game.settings.vegas && (
-                                        <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
-                                            <h4 className="text-[10px] font-bold text-blue-600 mb-3 uppercase border-b border-blue-200 pb-1">Vegas Results</h4>
-                                            <div className="space-y-2">
-                                                {players.map(p => (
-                                                    <div key={p.id} className="flex justify-between items-center text-sm font-bold">
-                                                        <span className="text-gray-600">{p.name}</span>
-                                                        <span className={game.totalVegasPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>{game.totalVegasPoints[p.id] > 0 ? '+' : ''}{game.totalVegasPoints[p.id]}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {game.settings.olympic && (
-                                        <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100">
-                                            <h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase border-b border-yellow-200 pb-1">Olympic Results</h4>
-                                            <div className="space-y-2">
-                                                {players.map(p => (
-                                                    <div key={p.id} className="flex justify-between items-center text-sm font-bold">
-                                                        <span className="text-gray-600">{p.name}</span>
-                                                        <span className={game.totalOlympicPoints[p.id] >= 0 ? 'text-blue-600' : 'text-red-500'}>{game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-3 px-4 pb-4">
-                                    <button onClick={() => setShowEndConfirm(true)} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button>
-                                    <button onClick={() => setShowFinal(false)} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">再開する</button>
-                                </div>
+                        <ResultsModal game={game} players={players} onClose={()=>setShowFinal(false)} onEnd={onBack} />
+                    )}
+                </div>
+            );
+        };
+
+        const MedalButton = ({ type, current, onClick, disabled }) => {
+            const icons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
+            const isActive = current === type;
+            return <button onClick={onClick} disabled={disabled} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border transition medal-btn ${disabled ? 'disabled' : ''} ${isActive ? 'active bg-yellow-50 border-yellow-400' : 'bg-white border-gray-200'}`}>{icons[type]}</button>;
+        };
+
+        const HistorySection = ({ game, players }) => {
+            if (!game.scores || game.scores.length === 0) return null;
+            const medalIcons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
+
+            return (
+                <div className="space-y-6 mt-8">
+                    <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                        <h3 className="text-[10px] font-bold text-green-600 mb-2 uppercase border-l-4 border-green-500 pl-2">Score History</h3>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
+                            <table className="w-full text-center border-collapse">
+                                <thead className="sticky top-0 bg-white z-10">
+                                    <tr className="text-gray-400 text-[10px]">
+                                        <th className="p-2 bg-gray-50/95">H(P)</th>
+                                        {players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] bg-gray-50/95">{p.name}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {game.scores.map((h, i) => (
+                                        <tr key={i} className="border-b border-gray-50 last:border-0">
+                                            <td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}({h.par})</td>
+                                            {players.map(p => {
+                                                const s = parseInt(h.scores[p.id]);
+                                                const diff = s - h.par;
+                                                return (
+                                                    <td key={p.id} className="p-2">
+                                                        <div className={`text-[11px] font-black rounded-md py-1 ${diff < 0 ? 'text-blue-600 bg-blue-50' : diff > 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>
+                                                            {s}
+                                                        </div>
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {game.settings.vegas && (
+                        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
+                            <div className="max-h-40 overflow-y-auto no-scrollbar">
+                                <table className="w-full text-center border-collapse text-[10px]">
+                                    <thead className="sticky top-0 bg-white z-10">
+                                        <tr className="text-gray-400"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr>
+                                    </thead>
+                                    <tbody>{game.scores.map((h, i) => (
+                                        <tr key={i} className="border-b border-gray-50">
+                                            <td className="p-2 text-gray-400 font-bold">{h.hole}</td>
+                                            {players.map(p => {
+                                                const vP = h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff;
+                                                const colorClass = vP > 0 ? 'text-blue-600 bg-blue-50' : vP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100';
+                                                return <td key={p.id} className="p-2"><div className={`font-black px-1.5 rounded-md py-1 ${colorClass}`}>{vP > 0 ? '+' : ''}{vP}</div></td>;
+                                            })}
+                                        </tr>
+                                    ))}</tbody>
+                                </table>
                             </div>
                         </div>
                     )}
+                    {game.settings.olympic && (
+                        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
+                            <div className="max-h-40 overflow-y-auto no-scrollbar">
+                                <table className="w-full text-center border-collapse text-[10px]">
+                                    <thead className="sticky top-0 bg-white z-10">
+                                        <tr className="text-gray-400"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr>
+                                    </thead>
+                                    <tbody>{game.scores.map((h, i) => (
+                                        <tr key={i} className="border-b border-gray-50 last:border-0">
+                                            <td className="p-2 text-gray-400 font-bold">{h.hole}</td>
+                                            {players.map(p => {
+                                                const oP = h.olympicPoints[p.id] || 0;
+                                                const medal = h.medals ? h.medals[p.id] : null;
+                                                const colorClass = oP > 0 ? 'text-blue-600 bg-blue-50' : oP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100';
+                                                return (
+                                                    <td key={p.id} className="p-1">
+                                                        <div className={`font-black px-1 rounded-md py-1 flex items-center justify-center gap-0.5 ${colorClass}`}>
+                                                            {medal && <span className="text-[10px] leading-none">{medalIcons[medal]}</span>}
+                                                            <span>{oP > 0 ? '+' : ''}{oP}</span>
+                                                        </div>
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
-                    {/* 終了確認モーダル */}
+        const ResultsModal = ({ game, players, onClose, onEnd }) => {
+            const [showEndConfirm, setShowEndConfirm] = useState(false);
+            const history = game.scores;
+            
+            const getPlayerScore = (pId) => {
+                const outHoles = history.filter(h => h.hole >= 1 && h.hole <= 9);
+                const inHoles = history.filter(h => h.hole >= 10 && h.hole <= 18);
+                const calc = (holes) => {
+                    const strokes = holes.reduce((sum, h) => sum + parseInt(h.scores[pId] || 0), 0);
+                    const pars = holes.reduce((sum, h) => sum + h.par, 0);
+                    return { strokes, pars };
+                };
+                const outData = calc(outHoles);
+                const inData = calc(inHoles);
+                const totalStrokes = outData.strokes + inData.strokes;
+                const totalPars = outData.pars + inData.pars;
+                return { 
+                    out: outData.strokes, 
+                    in: inData.strokes, 
+                    total: totalStrokes, 
+                    diff: totalStrokes - totalPars
+                };
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
+                        <h3 className="text-gray-800 text-xl font-black mb-4 mt-2 tracking-tighter">結果一覧</h3>
+                        
+                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6">
+                            {game.settings.vegas && (
+                                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
+                                    <h4 className="text-[10px] font-bold text-blue-600 mb-3 uppercase border-b border-blue-200 pb-1 text-left">Vegas Results</h4>
+                                    <div className="space-y-2">
+                                        {players.map(p => {
+                                            const val = game.totalVegasPoints[p.id];
+                                            const color = val === 0 ? 'text-gray-500' : (val > 0 ? 'text-blue-600' : 'text-red-500');
+                                            return (
+                                                <div key={p.id} className="flex justify-between items-center text-sm font-bold">
+                                                    <span className="text-gray-600">{p.name}</span>
+                                                    <span className={color}>{val > 0 ? '+' : ''}{val}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {game.settings.olympic && (
+                                <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100">
+                                    <h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase border-b border-yellow-200 pb-1 text-left">Olympic Results</h4>
+                                    <div className="space-y-2">
+                                        {players.map(p => {
+                                            const val = game.totalOlympicPoints[p.id];
+                                            const color = val === 0 ? 'text-gray-500' : (val > 0 ? 'text-blue-600' : 'text-red-500');
+                                            return (
+                                                <div key={p.id} className="flex justify-between items-center text-sm font-bold">
+                                                    <span className="text-gray-600">{p.name}</span>
+                                                    <span className={color}>{val > 0 ? '+' : ''}{val}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
+                                <h4 className="text-[10px] font-bold text-green-600 mb-3 uppercase border-b border-green-200 pb-1 text-left">Stroke Score</h4>
+                                <div className="space-y-2">
+                                    {players.map(p => {
+                                        const res = getPlayerScore(p.id);
+                                        const diffText = res.diff === 0 ? 'E' : (res.diff > 0 ? '+' + res.diff : res.diff);
+                                        const diffColorClass = res.diff === 0 ? 'text-gray-700' : (res.diff > 0 ? 'text-red-600' : 'text-blue-600');
+
+                                        return (
+                                            <div key={p.id} className="flex justify-between items-center text-sm font-bold">
+                                                <span className="text-gray-600 w-16 truncate text-left">{p.name}</span>
+                                                <div className="flex-1 flex justify-end items-center gap-3">
+                                                    <span className="text-[10px] text-gray-700 font-bold">O:{res.out || '-'}</span>
+                                                    <span className="text-[10px] text-gray-700 font-bold">I:{res.in || '-'}</span>
+                                                    <span className="text-sm text-gray-800 font-black">T:{res.total}</span>
+                                                    <span className={`min-w-[28px] text-right text-sm font-black ${diffColorClass}`}>
+                                                        {diffText}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                            <button onClick={() => setShowEndConfirm(true)} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button>
+                            <button onClick={onClose} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">閉じる</button>
+                        </div>
+                    </div>
+
                     {showEndConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
@@ -720,7 +918,7 @@
                                 <p className="text-gray-500 text-sm mb-6 leading-relaxed">今回のゲームを終了して<br/>ホーム画面に戻りますか？</p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setShowEndConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
-                                    <button onClick={onBack} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button>
+                                    <button onClick={onEnd} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button>
                                 </div>
                             </div>
                         </div>
@@ -729,78 +927,22 @@
             );
         };
 
-        const MedalButton = ({ type, label, current, onClick, disabled, isReverse }) => {
-            const isActive = current === type;
-            const baseClass = `w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border transition medal-btn relative ${disabled ? 'disabled' : ''} ${isActive && isReverse ? 'is-reverse' : ''}`;
-            let colorClass = isActive ? (
-                type === 'diamond' ? "bg-blue-100 border-blue-400 text-blue-600 ring-2 ring-blue-200" :
-                type === 'gold' ? "bg-yellow-100 border-yellow-400 text-yellow-700 ring-2 ring-yellow-200" :
-                type === 'silver' ? "bg-gray-100 border-gray-400 text-gray-600 ring-2 ring-gray-200" :
-                type === 'bronze' ? "bg-orange-100 border-orange-400 text-orange-800 ring-2 ring-orange-200" :
-                "bg-slate-200 border-slate-500 text-slate-800 ring-2 ring-slate-200"
-            ) : "bg-white border-gray-200 text-gray-400";
-            return <button onClick={onClick} disabled={disabled} className={`${baseClass} ${colorClass}`}>{label}</button>;
-        };
-
-        const HistorySection = ({ game, players }) => {
-            if (!game.scores || game.scores.length === 0) return null;
-            return (
-                <div className="space-y-6 mt-6">
-                    {game.settings.vegas && (
-                        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
-                            <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
-                                <table className="w-full text-center border-collapse min-w-[300px]">
-                                    <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-500"><th className="p-2 text-[10px] bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-[10px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                    <tbody>{game.scores.map((h, i) => (
-                                        <tr key={i} className="border-b border-gray-50 last:border-0"><td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}</td>{players.map(p => {
-                                            const vP = h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff;
-                                            return <td key={p.id} className="p-2"><div className={`text-[10px] font-black px-1.5 rounded-md py-1 ${vP >= 0 ? 'text-blue-600 bg-blue-50' : 'text-red-500 bg-red-50'}`}>{vP > 0 ? '+' : ''}{vP}</div></td>;
-                                        })}</tr>
-                                    ))}</tbody>
-                                </table>
+        const TeamCard = ({ color, label, pIds, players, scores, setScores, par }) => (
+            <div className={`rounded-2xl border-2 p-3 ${color === 'blue' ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+                <div className={`text-[10px] font-black ${color === 'blue' ? 'text-blue-600' : 'text-red-600'} mb-2 tracking-widest uppercase`}>{label}</div>
+                <div className="flex gap-2.5">
+                    {pIds.map((pid) => {
+                        const p = players.find(x => x.id === pid);
+                        return (
+                            <div key={pid} className="flex-1 bg-white/80 backdrop-blur rounded-xl p-2 shadow-sm text-center border border-white/50">
+                                <div className="text-[10px] font-bold text-gray-600 truncate mb-1">{p.name}</div>
+                                <input type="tel" inputMode="numeric" pattern="[0-9]*" placeholder={par} value={scores[pid]} onChange={(e) => setScores({...scores, [pid]: e.target.value})} className="w-full text-center text-2xl font-black text-gray-800 bg-transparent rounded border-0 p-1 focus:ring-0 outline-none" />
                             </div>
-                        </div>
-                    )}
-                    {game.settings.olympic && (
-                        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
-                            <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
-                                <table className="w-full text-center border-collapse min-w-[300px]">
-                                    <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-500"><th className="p-2 text-[10px] bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] text-[10px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                    <tbody>{game.scores.map((h, i) => (
-                                        <tr key={i} className="border-b border-gray-50 last:border-0"><td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}</td>{players.map(p => {
-                                            const oP = h.olympicPoints[p.id] || 0;
-                                            return <td key={p.id} className="p-2"><div className={`text-[10px] font-black px-1.5 rounded-md py-1 ${oP >= 0 ? 'text-blue-600 bg-blue-50' : 'text-red-500 bg-red-50'}`}>{oP > 0 ? '+' : ''}{oP}</div></td>;
-                                        })}</tr>
-                                    ))}</tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                        );
+                    })}
                 </div>
-            );
-        };
-
-        const TeamCard = ({ color, label, pIds, players, scores, setScores, par }) => {
-            const isBlue = color === 'blue';
-            return (
-                <div className={`rounded-2xl border-2 p-3 ${isBlue ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
-                    <div className={`text-[10px] font-black ${isBlue ? 'text-blue-600' : 'text-red-600'} mb-2 flex justify-between tracking-widest uppercase`}>{label}</div>
-                    <div className="flex gap-2.5">
-                        {pIds.map((pid) => {
-                            const p = players.find(x => x.id === pid);
-                            return (
-                                <div key={pid} className="flex-1 bg-white/80 backdrop-blur rounded-xl p-2 shadow-sm text-center border border-white/50">
-                                    <div className="text-[10px] font-bold text-gray-600 truncate mb-1">{p.name}</div>
-                                    <input type="tel" inputMode="numeric" pattern="[0-9]*" placeholder={par} value={scores[pid]} onChange={(e) => setScores({...scores, [pid]: e.target.value})} className="w-full text-center text-2xl font-black text-gray-800 bg-transparent rounded border-0 p-1 focus:ring-0 outline-none" />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
-        };
+            </div>
+        );
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
