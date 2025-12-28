@@ -343,7 +343,8 @@
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">日付</label>
-                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" />
+                            {/* w-full に block と box-border を追加してはみ出しを防止 */}
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full block box-border p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゴルフ場名</label>
@@ -814,6 +815,7 @@
             const history = game.scores;
             
             const getPlayerScore = (pId) => {
+                //指示に基づき修正：OUT(1-9番), IN(10-18番)
                 const outHoles = history.filter(h => h.hole >= 1 && h.hole <= 9);
                 const inHoles = history.filter(h => h.hole >= 10 && h.hole <= 18);
                 const calc = (holes) => {
@@ -948,4 +950,4 @@
         root.render(<App />);
     </script>
 </body>
-</html>
+</html> eof
