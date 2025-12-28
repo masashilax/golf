@@ -343,12 +343,23 @@
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">日付</label>
-                            {/* w-full に block と box-border を追加してはみ出しを防止 */}
-                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full block box-border p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" />
+                            {/* モバイルでの表示崩れ防止のため appearance-none と box-border を適用 */}
+                            <input 
+                                type="date" 
+                                value={date} 
+                                onChange={(e) => setDate(e.target.value)} 
+                                className="w-full block box-border appearance-none p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" 
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゴルフ場名</label>
-                            <input type="text" placeholder="" value={course} onChange={(e) => setCourse(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" />
+                            <input 
+                                type="text" 
+                                placeholder="" 
+                                value={course} 
+                                onChange={(e) => setCourse(e.target.value)} 
+                                className="w-full block box-border p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none focus:ring-2 ring-green-500 h-12" 
+                            />
                         </div>
                         
                         <div>
@@ -403,7 +414,7 @@
                                                 value={p.name} 
                                                 onChange={(e) => updatePlayer(i, 'name', e.target.value)} 
                                                 placeholder="名前を入力" 
-                                                className="w-full p-2.5 bg-gray-50 rounded-lg text-sm text-gray-800 font-medium outline-none focus:ring-2 ring-green-500 h-11" 
+                                                className="w-full block box-border p-2.5 bg-gray-50 rounded-lg text-sm text-gray-800 font-medium outline-none focus:ring-2 ring-green-500 h-11" 
                                             />
                                         </div>
                                         <div className="w-20">
@@ -756,7 +767,7 @@
 
                     {game.settings.vegas && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
+                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-green-500 pl-2">Vegas History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10">
@@ -815,7 +826,7 @@
             const history = game.scores;
             
             const getPlayerScore = (pId) => {
-                //指示に基づき修正：OUT(1-9番), IN(10-18番)
+                // OUT: 1-9番, IN: 10-18番 (指示通り修正)
                 const outHoles = history.filter(h => h.hole >= 1 && h.hole <= 9);
                 const inHoles = history.filter(h => h.hole >= 10 && h.hole <= 18);
                 const calc = (holes) => {
@@ -950,4 +961,4 @@
         root.render(<App />);
     </script>
 </body>
-</html> eof
+</html>
