@@ -164,6 +164,7 @@
                     totalVegasPoints: {0:0, 1:0, 2:0, 3:0},
                     totalOlympicPoints: {0:0, 1:0, 2:0, 3:0},
                     settings: setupData.settings,
+                    vegasMultiplier: 1, // 内部倍率の初期化
                     isFinished: false
                 };
                 setGames([newGame, ...games]);
@@ -225,7 +226,6 @@
                         {games.length === 0 && <p className="text-center text-gray-400 py-12 bg-white rounded-xl border border-dashed border-gray-300">履歴がありません</p>}
                         <div className="space-y-3">
                             {games.map(game => {
-                                // 合計規定打数の計算
                                 const totalPar = game.scores.reduce((sum, h) => sum + h.par, 0);
 
                                 return (
@@ -246,7 +246,6 @@
                                                 <i className="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
-                                        {/* 2行2列のグリッドレイアウト */}
                                         <div className="pl-3 grid grid-cols-2 gap-x-2 gap-y-2">
                                             {game.players.map((p, i) => {
                                                 const vP = game.totalVegasPoints ? game.totalVegasPoints[p.id] : 0;
@@ -343,7 +342,6 @@
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">日付</label>
-                            {/* モバイルでの表示崩れ防止のため appearance-none と box-border を適用 */}
                             <input 
                                 type="date" 
                                 value={date} 
@@ -518,6 +516,9 @@
                 const s = (pid) => parseInt(scores[pid]);
                 let vegasDiff = 0, olympicPoints = {0:0, 1:0, 2:0, 3:0};
                 
+                // 倍率ロジックの適用
+                const currentMultiplier = game.vegasMultiplier || 1;
+
                 if (game.settings.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
                     let p1 = Math.min(...t1S) * 10 + Math.max(...t1S), p2 = Math.min(...t2S) * 10 + Math.max(...t2S);
@@ -529,8 +530,12 @@
                     let mult = 1;
                     if (res1.rank > 0) { if (res1.rank === 2) mult *= 2; p2 = Math.max(...t2S) * 10 + Math.min(...t2S); }
                     if (res2.rank > 0) { if (res2.rank === 2) mult *= 2; p1 = Math.min(...t1S) * 10 + Math.min(...t1S); }
+                    
                     const raw = (p2 - p1) * mult;
-                    vegasDiff = (raw >= 0 ? Math.ceil(Math.abs(raw) / 5) * 5 : -Math.ceil(Math.abs(raw) / 5) * 5);
+                    const baseDiff = (raw >= 0 ? Math.ceil(Math.abs(raw) / 5) * 5 : -Math.ceil(Math.abs(raw) / 5) * 5);
+                    
+                    // 倍率を適用
+                    vegasDiff = baseDiff * currentMultiplier;
                 }
 
                 if (game.settings.olympic) {
@@ -573,6 +578,13 @@
                     };
                 });
 
+                // キャリーオーバー判定
+                let nextMultiplier = 1;
+                const currentVegasTie = game.settings.vegas && vegasDiff === 0;
+                if (currentVegasTie) {
+                    nextMultiplier = currentMultiplier + 1;
+                }
+
                 const newHistory = [...game.scores, { 
                     hole: game.currentHole, 
                     par, 
@@ -582,12 +594,21 @@
                     teams: { t1: team1, t2: team2 }, 
                     medals: { ...olympicMedals }, 
                     orderBefore: [...currentOrder],
-                    achievements
+                    achievements,
+                    multiplierUsed: currentMultiplier 
                 }];
 
                 const nextHole = game.currentHole === 18 ? 1 : game.currentHole + 1;
 
-                onUpdate({ ...game, currentHole: nextHole, currentOrder: newOrder, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
+                onUpdate({ 
+                    ...game, 
+                    currentHole: nextHole, 
+                    currentOrder: newOrder, 
+                    totalVegasPoints: newVegasTotal, 
+                    totalOlympicPoints: newOlympicTotal, 
+                    vegasMultiplier: nextMultiplier,
+                    scores: newHistory 
+                });
                 setScores({0:'', 1:'', 2:'', 3:''}); setOlympicMedals({});
                 setPlayerOptions({ 0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts } });
                 setPar(4);
@@ -609,7 +630,16 @@
                         newOlympicTotal[p.id] -= (lastHole.olympicPoints[p.id] || 0);
                     }
                 });
-                onUpdate({ ...game, currentHole: lastHole.hole, currentOrder: lastHole.orderBefore, totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, scores: newHistory });
+                
+                onUpdate({ 
+                    ...game, 
+                    currentHole: lastHole.hole, 
+                    currentOrder: lastHole.orderBefore, 
+                    totalVegasPoints: newVegasTotal, 
+                    totalOlympicPoints: newOlympicTotal, 
+                    vegasMultiplier: lastHole.multiplierUsed, 
+                    scores: newHistory 
+                });
                 setUndoConfirm(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
@@ -617,7 +647,7 @@
             return (
                 <div className="pb-8">
                     <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 text-center border border-gray-100">
-                        <div className="flex justify-between items-center mb-3">
+                        <div className="flex justify-between items-center mb-1">
                             <h2 className="text-xl font-bold text-gray-800">Hole {game.currentHole}</h2>
                             <div className="flex bg-gray-100 rounded-lg p-1">
                                 {[3, 4, 5].map(p => (
@@ -625,6 +655,7 @@
                                 ))}
                             </div>
                         </div>
+                        {/* UIパーツ削除：キャリーオーバーバッジを表示していた箇所 */}
                     </div>
 
                     <div className="space-y-3">
@@ -767,7 +798,7 @@
 
                     {game.settings.vegas && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-green-500 pl-2">Vegas History</h3>
+                            <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10">
@@ -826,7 +857,6 @@
             const history = game.scores;
             
             const getPlayerScore = (pId) => {
-                // OUT: 1-9番, IN: 10-18番 (指示通り修正)
                 const outHoles = history.filter(h => h.hole >= 1 && h.hole <= 9);
                 const inHoles = history.filter(h => h.hole >= 10 && h.hole <= 18);
                 const calc = (holes) => {
