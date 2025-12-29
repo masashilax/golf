@@ -604,7 +604,10 @@
                     vegasMultiplier: last.multiplierUsed, scores: game.scores.slice(0,-1)
                 });
                 setUndoConfirm(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // 修正実行後にトップへスクロール
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 50);
             };
 
             const isThree = game.players.length === 3;
@@ -667,13 +670,9 @@
                                                             const hasDiamondAnywhere = !!takenMedals['diamond'];
                                                             const hasIronAnywhere = !!takenMedals['iron'];
                                                             
-                                                            // 1. 他の人が選択済みの場合は無効
                                                             let isDisabled = takenMedals[type] && takenMedals[type] !== p.id;
-                                                            // 2. ダイヤモンドがいれば鉄は無効
                                                             if (isIron && hasDiamondAnywhere) isDisabled = true;
-                                                            // 3. 鉄がいればダイヤモンドは無効（矛盾防止）
                                                             if (isDiamond && hasIronAnywhere) isDisabled = true;
-                                                            // 4. 3人の場合は鉄は常に無効
                                                             if (isIron && isThree) isDisabled = true;
 
                                                             return (
@@ -689,7 +688,9 @@
                                                     </div>
                                                 </div>
                                                 <div className="opt-grid">
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],rodState:v[p.id].rodState===1?-1:v[p.id].rodState===-1?0:1}}))} className={`opt-btn ${opt.rodState===1?'active':opt.rodState===-1?'active-red':''}`}>竿イチ</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],rodState:v[p.id].rodState===1?-1:v[p.id].rodState===-1?0:1}}))} className={`opt-btn ${opt.rodState===1?'active':opt.rodState===-1?'active-red':''}`}>
+                                                        {opt.rodState === -1 ? '竿失敗' : '竿イチ'}
+                                                    </button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id].sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id].near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3 && game.settings.vegas}>ニアピン</button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id].reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
