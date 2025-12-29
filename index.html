@@ -28,7 +28,10 @@
             padding-bottom: env(safe-area-inset-bottom);
             min-height: 100vh;
         }
-        input, select, textarea { font-size: 16px !important; }
+        input, select, textarea { 
+            font-size: 16px !important; 
+            box-sizing: border-box !important;
+        }
         input[type="number"]::-webkit-inner-spin-button, 
         input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .btn-press:active { transform: scale(0.96); opacity: 0.9; }
@@ -83,11 +86,6 @@
             0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); }
             70% { box-shadow: 0 0 0 6px rgba(234, 179, 8, 0); }
             100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
-        }
-
-        .medal-btn.is-reverse.active {
-            filter: hue-rotate(140deg) brightness(0.8);
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
         }
 
         .switch {
@@ -147,6 +145,19 @@
             const [activeGameId, setActiveGameId] = useState(null);
             const [showExitConfirm, setShowExitConfirm] = useState(false);
 
+            const [setupInfo, setSetupInfo] = useState({
+                course: '',
+                date: getToday(),
+                startSide: 'OUT',
+                playerData: [
+                    { name: '松本洋介', order: 1 },
+                    { name: '', order: 2 },
+                    { name: '', order: 3 },
+                    { name: '', order: 4 }
+                ],
+                settings: { vegas: true, olympic: true }
+            });
+
             const navigateTo = (nextView) => {
                 setView(nextView);
                 window.scrollTo({ top: 0, behavior: 'instant' });
@@ -161,18 +172,18 @@
                 localStorage.setItem('golf_vegas_data', JSON.stringify(games));
             }, [games]);
 
-            const createGame = (setupData) => {
+            const createGame = (finalSetup) => {
                 const newGame = {
                     id: generateId(),
-                    date: setupData.date,
-                    course: setupData.course,
-                    players: setupData.players,
+                    date: finalSetup.date,
+                    course: finalSetup.course,
+                    players: finalSetup.players,
                     scores: [],
-                    currentHole: setupData.startHole || 1,
-                    currentOrder: setupData.currentOrder || ['0', '1', '2', '3'],
-                    totalVegasPoints: {0:0, 1:0, 2:0, 3:0},
-                    totalOlympicPoints: {0:0, 1:0, 2:0, 3:0},
-                    settings: setupData.settings,
+                    currentHole: finalSetup.startHole || 1,
+                    currentOrder: finalSetup.currentOrder,
+                    totalVegasPoints: finalSetup.players.reduce((a,p)=>({...a,[p.id]:0}),{}),
+                    totalOlympicPoints: finalSetup.players.reduce((a,p)=>({...a,[p.id]:0}),{}),
+                    settings: finalSetup.settings,
                     vegasMultiplier: 1,
                     isFinished: false
                 };
@@ -222,7 +233,12 @@
                             />
                         )}
                         {view === 'NEW' && (
-                            <NewGameScreen onCancel={() => navigateTo('HOME')} onCreate={createGame} />
+                            <NewGameScreen 
+                                setupInfo={setupInfo}
+                                setSetupInfo={setSetupInfo}
+                                onCancel={() => navigateTo('HOME')} 
+                                onCreate={createGame} 
+                            />
                         )}
                         {view === 'GAME' && activeGame && (
                             <GameScreen 
@@ -326,68 +342,87 @@
                             </div>
                         </div>
                     )}
-                    <button onClick={onNew} className="fixed bottom-10 right-6 md:right-[calc(50%-180px)] w-16 h-16 bg-gradient-to-r from-green-600 to-green-50 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl btn-press z-50"><i className="fa-solid fa-plus"></i></button>
+                    <button onClick={onNew} className="fixed bottom-10 right-6 md:right-[calc(50%-180px)] w-16 h-16 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl btn-press z-50"><i className="fa-solid fa-plus"></i></button>
                 </div>
             );
         };
 
-        const NewGameScreen = ({ onCancel, onCreate }) => {
-            const [course, setCourse] = useState('');
-            const [date, setDate] = useState(getToday());
-            const [startSide, setStartSide] = useState('OUT');
-            const [playerData, setPlayerData] = useState([
-                { name: '松本洋介', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
-            ]);
-            const [settings, setSettings] = useState({ vegas: true, olympic: true });
-
+        const NewGameScreen = ({ setupInfo, setSetupInfo, onCancel, onCreate }) => {
             const handleSubmit = () => {
-                if (!course) { alert('ゴルフ場名を入力してください'); return; }
-                const players = playerData.map((p, i) => ({ id: String(i), name: p.name || `プレイヤー${i+1}` }));
-                const currentOrder = ['0', '1', '2', '3'].sort((a, b) => playerData[parseInt(a)].order - playerData[parseInt(b)].order);
-                onCreate({ date, course, players, settings, currentOrder, startHole: startSide === 'OUT' ? 1 : 10 });
+                if (!setupInfo.course) { alert('ゴルフ場名を入力してください'); return; }
+                const activePlayersData = setupInfo.playerData.filter(p => p.name.trim() !== '');
+                if (activePlayersData.length < 3) { alert('最低3名のプレイヤー名を入力してください'); return; }
+
+                const players = activePlayersData.map((p, i) => ({ id: String(i), name: p.name }));
+                const initialIds = players.map(p => p.id);
+                const currentOrder = initialIds.sort((a, b) => {
+                    return activePlayersData[parseInt(a)].order - activePlayersData[parseInt(b)].order;
+                });
+
+                onCreate({ 
+                    date: setupInfo.date, 
+                    course: setupInfo.course, 
+                    players, 
+                    settings: setupInfo.settings, 
+                    currentOrder, 
+                    startHole: setupInfo.startSide === 'OUT' ? 1 : 10 
+                });
             };
 
             const updatePlayer = (idx, field, val) => {
-                const newData = [...playerData];
+                const newData = [...setupInfo.playerData];
                 newData[idx][field] = val;
-                setPlayerData(newData);
+                setSetupInfo({...setupInfo, playerData: newData});
             };
 
-            const resetPlayers = () => setPlayerData([
-                { name: '松本洋介', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
-            ]);
+            const resetPlayers = () => setSetupInfo({
+                ...setupInfo,
+                playerData: [
+                    { name: '松本洋介', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
+                ]
+            });
 
             return (
                 <div className="bg-white rounded-2xl shadow-sm p-5 space-y-6">
                     <h2 className="text-lg font-bold text-center border-b pb-3 text-gray-700">新規ゲーム設定</h2>
                     <div className="space-y-4">
-                        <div>
+                        <div className="w-full overflow-hidden">
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">日付</label>
-                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold h-12" />
+                            <input 
+                                type="date" 
+                                value={setupInfo.date} 
+                                onChange={(e) => setSetupInfo({...setupInfo, date: e.target.value})} 
+                                className="w-full block box-border p-3 bg-gray-50 rounded-xl font-bold text-gray-800 outline-none h-12 max-w-full appearance-none" 
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">ゴルフ場名</label>
-                            <input type="text" value={course} onChange={(e) => setCourse(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl font-bold h-12" />
+                            <input 
+                                type="text" 
+                                value={setupInfo.course} 
+                                onChange={(e) => setSetupInfo({...setupInfo, course: e.target.value})} 
+                                className="w-full block box-border p-3 bg-gray-50 rounded-xl font-bold text-gray-800 h-12" 
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">モード</label>
                             <div className="bg-gray-50 p-4 rounded-xl space-y-3">
-                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">ラスベガス</span><label className="switch"><input type="checkbox" checked={settings.vegas} onChange={() => setSettings({...settings, vegas: !settings.vegas})} /><span className="slider"></span></label></div>
-                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">オリンピック</span><label className="switch"><input type="checkbox" checked={settings.olympic} onChange={() => setSettings({...settings, olympic: !settings.olympic})} /><span className="slider"></span></label></div>
+                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">ラスベガス (チーム戦)</span><label className="switch"><input type="checkbox" checked={setupInfo.settings.vegas} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegas: !setupInfo.settings.vegas}})} /><span className="slider"></span></label></div>
+                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span><label className="switch"><input type="checkbox" checked={setupInfo.settings.olympic} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, olympic: !setupInfo.settings.olympic}})} /><span className="slider"></span></label></div>
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => setStartSide('OUT')} className={`flex-1 py-3 rounded-xl font-bold ${startSide === 'OUT' ? 'bg-green-600 text-white shadow' : 'bg-gray-100 text-gray-400'}`}>OUT</button>
-                            <button onClick={() => setStartSide('IN')} className={`flex-1 py-3 rounded-xl font-bold ${startSide === 'IN' ? 'bg-green-600 text-white shadow' : 'bg-gray-100 text-gray-400'}`}>IN</button>
+                            <button onClick={() => setSetupInfo({...setupInfo, startSide: 'OUT'})} className={`flex-1 py-3 rounded-xl font-bold ${setupInfo.startSide === 'OUT' ? 'bg-green-600 text-white shadow' : 'bg-gray-100 text-gray-400'}`}>OUT</button>
+                            <button onClick={() => setSetupInfo({...setupInfo, startSide: 'IN'})} className={`flex-1 py-3 rounded-xl font-bold ${setupInfo.startSide === 'IN' ? 'bg-green-600 text-white shadow' : 'bg-gray-100 text-gray-400'}`}>IN</button>
                         </div>
                         <div className="space-y-4">
                             <div className="flex justify-between items-end mb-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase">メンバーと初期打順</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase">メンバーと初期打順（3名以上）</label>
                                 <button onClick={resetPlayers} className="text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded">クリア</button>
                             </div>
-                            {playerData.map((p, i) => (
+                            {setupInfo.playerData.map((p, i) => (
                                 <div key={i} className="flex gap-2">
-                                    <input type="text" value={p.name} onChange={(e) => updatePlayer(i, 'name', e.target.value)} placeholder="名前" className="flex-1 p-2.5 bg-gray-50 rounded-lg text-sm h-11" />
+                                    <input type="text" value={p.name} onChange={(e) => updatePlayer(i, 'name', e.target.value)} placeholder={`プレイヤー${i+1}`} className="flex-1 p-2.5 bg-gray-50 rounded-lg text-sm h-11" />
                                     <select value={p.order} onChange={(e) => updatePlayer(i, 'order', parseInt(e.target.value))} className="w-20 p-2.5 bg-gray-100 rounded-lg text-xs font-bold h-11">
                                         {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n}番目</option>)}
                                     </select>
@@ -396,7 +431,7 @@
                         </div>
                     </div>
                     <div className="flex gap-3 pt-2">
-                        <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold btn-press">戻る</button>
+                        <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold btn-press">キャンセル</button>
                         <button onClick={handleSubmit} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-md btn-press">開始</button>
                     </div>
                 </div>
@@ -405,7 +440,7 @@
 
         const GameScreen = ({ game, onUpdate, onBack, onRestartSetup }) => {
             const [par, setPar] = useState(4);
-            const [scores, setScores] = useState({0:'', 1:'', 2:'', 3:''});
+            const [scores, setScores] = useState(game.players.reduce((a,p)=>({...a,[p.id]:''}),{}));
             const [showFinal, setShowFinal] = useState(false);
             const [showOlympic, setShowOlympic] = useState(game.settings.olympic || !game.settings.vegas);
             const [olympicMedals, setOlympicMedals] = useState({}); 
@@ -416,9 +451,7 @@
                 rodState: 0, sand: false, near: false, reverse: false, 
                 birdie: false, eagle: false, four: false, straight: false, manualAdj: ''
             };
-            const [playerOptions, setPlayerOptions] = useState({
-                0: { ...initialOpts }, 1: { ...initialOpts }, 2: { ...initialOpts }, 3: { ...initialOpts }
-            });
+            const [playerOptions, setPlayerOptions] = useState(game.players.reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
 
             const MEDAL_PTS = { diamond: 5, gold: 4, silver: 3, bronze: 2, iron: 1 };
             const MEDAL_REVERSE_PTS = { diamond: -5, gold: -1, silver: -2, bronze: -3, iron: -4 };
@@ -451,15 +484,12 @@
                         const currentMedal = olympicMedals[p.id];
                         const counts = getPlayerMedalStats(p.id, currentMedal);
                         const prevCounts = getPlayerMedalStats(p.id, null); 
-                        
                         let isFourCard = false;
                         ['diamond', 'gold', 'silver', 'bronze', 'iron'].forEach(type => {
                             if (counts[type] > 0 && counts[type] % 4 === 0 && counts[type] !== prevCounts[type]) isFourCard = true;
                         });
-                        
                         const isStraight = calcStraightSets(counts) > calcStraightSets(prevCounts);
                         const sVal = parseInt(scores[p.id]);
-
                         next[p.id] = { 
                             ...prev[p.id], 
                             four: isFourCard, 
@@ -477,13 +507,20 @@
             }, [olympicMedals]);
 
             const handleCalculateAndSave = () => {
-                for(let i=0; i<4; i++) { if(scores[i] === '') { alert('全員のスコアを入力してください'); return; } }
-
+                for(let p of game.players) { if(scores[p.id] === '') { alert('全員のスコアを入力してください'); return; } }
                 const s = (pid) => parseInt(scores[pid]);
-                let vegasDiff = 0, olympicPoints = {0:0, 1:0, 2:0, 3:0};
+                let vegasDiff = 0, olympicPoints = game.players.reduce((a,p)=>({...a,[p.id]:0}),{});
                 const currentMultiplier = game.vegasMultiplier || 1;
-                const team1 = [game.currentOrder[0], game.currentOrder[3]];
-                const team2 = [game.currentOrder[1], game.currentOrder[2]];
+                
+                const isThree = game.players.length === 3;
+                let team1, team2;
+                if (isThree) {
+                    team1 = [game.currentOrder[0], game.currentOrder[2]];
+                    team2 = [game.currentOrder[1], game.currentOrder[1]];
+                } else {
+                    team1 = [game.currentOrder[0], game.currentOrder[3]];
+                    team2 = [game.currentOrder[1], game.currentOrder[2]];
+                }
 
                 if (game.settings.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
@@ -523,10 +560,15 @@
                     teams: { t1: team1, t2: team2 }, medals: { ...olympicMedals }, orderBefore: [...game.currentOrder],
                     multiplierUsed: currentMultiplier, achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
                 }];
-
+                
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
                 game.players.forEach(p => {
-                    newVegasTotal[p.id] += (team1.includes(p.id) ? vegasDiff : -vegasDiff);
+                    if (isThree) {
+                        if (team1.includes(p.id)) newVegasTotal[p.id] += vegasDiff;
+                        else newVegasTotal[p.id] += (-vegasDiff * 2);
+                    } else {
+                        newVegasTotal[p.id] += (team1.includes(p.id) ? vegasDiff : -vegasDiff);
+                    }
                     newOlympicTotal[p.id] += olympicPoints[p.id];
                 });
 
@@ -538,15 +580,22 @@
                     vegasMultiplier: (game.settings.vegas && vegasDiff === 0) ? currentMultiplier + 1 : 1,
                     scores: newHistory 
                 });
-                setScores({0:'', 1:'', 2:'', 3:''}); setOlympicMedals({}); setPar(4);
+                setScores(game.players.reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const handleUndoLastHole = () => {
                 const last = [...game.scores].pop(); 
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
+                const isThree = game.players.length === 3;
+
                 game.players.forEach(p => {
-                    newVegasTotal[p.id] -= (last.teams.t1.includes(p.id) ? last.vegasDiff : -last.vegasDiff);
+                    if (isThree) {
+                        if (last.teams.t1.includes(p.id)) newVegasTotal[p.id] -= last.vegasDiff;
+                        else newVegasTotal[p.id] -= (-last.vegasDiff * 2);
+                    } else {
+                        newVegasTotal[p.id] -= (last.teams.t1.includes(p.id) ? last.vegasDiff : -last.vegasDiff);
+                    }
                     newOlympicTotal[p.id] -= (last.olympicPoints[p.id] || 0);
                 });
                 onUpdate({ 
@@ -555,12 +604,12 @@
                     vegasMultiplier: last.multiplierUsed, scores: game.scores.slice(0,-1)
                 });
                 setUndoConfirm(false);
-                // 修正時に画面トップへスクロール
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
-            const team1 = [game.currentOrder[0], game.currentOrder[3]];
-            const team2 = [game.currentOrder[1], game.currentOrder[2]];
+            const isThree = game.players.length === 3;
+            const team1 = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
+            const team2 = isThree ? [game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]];
 
             return (
                 <div className="pb-8">
@@ -585,7 +634,7 @@
                         <div className="space-y-3">
                             <TeamCard color="blue" label="チーム A" pIds={team1} players={game.players} scores={scores} setScores={setScores} par={par} />
                             <div className="text-center font-bold text-gray-300 text-xs tracking-widest uppercase">vs</div>
-                            <TeamCard color="red" label="チーム B" pIds={team2} players={game.players} scores={scores} setScores={setScores} par={par} />
+                            <TeamCard color="red" label={isThree ? "2位 (×2)" : "チーム B"} pIds={team2} players={game.players} scores={scores} setScores={setScores} par={par} />
                         </div>
                     )}
 
@@ -612,9 +661,31 @@
                                                         )}
                                                     </div>
                                                     <div className="flex gap-1">
-                                                        {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => (
-                                                            <MedalButton key={type} type={type} current={olympicMedals[p.id]} disabled={takenMedals[type] && takenMedals[type] !== p.id} onClick={() => setOlympicMedals(prev => prev[p.id] === type ? (()=>{const n={...prev}; delete n[p.id]; return n;})() : {...prev, [p.id]: type})} />
-                                                        ))}
+                                                        {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => {
+                                                            const isIron = type === 'iron';
+                                                            const isDiamond = type === 'diamond';
+                                                            const hasDiamondAnywhere = !!takenMedals['diamond'];
+                                                            const hasIronAnywhere = !!takenMedals['iron'];
+                                                            
+                                                            // 1. 他の人が選択済みの場合は無効
+                                                            let isDisabled = takenMedals[type] && takenMedals[type] !== p.id;
+                                                            // 2. ダイヤモンドがいれば鉄は無効
+                                                            if (isIron && hasDiamondAnywhere) isDisabled = true;
+                                                            // 3. 鉄がいればダイヤモンドは無効（矛盾防止）
+                                                            if (isDiamond && hasIronAnywhere) isDisabled = true;
+                                                            // 4. 3人の場合は鉄は常に無効
+                                                            if (isIron && isThree) isDisabled = true;
+
+                                                            return (
+                                                                <MedalButton 
+                                                                    key={type} 
+                                                                    type={type} 
+                                                                    current={olympicMedals[p.id]} 
+                                                                    disabled={isDisabled} 
+                                                                    onClick={() => setOlympicMedals(prev => prev[p.id] === type ? (()=>{const n={...prev}; delete n[p.id]; return n;})() : {...prev, [p.id]: type})} 
+                                                                />
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                                 <div className="opt-grid">
@@ -622,8 +693,8 @@
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id].sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id].near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3 && game.settings.vegas}>ニアピン</button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id].reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
-                                                    <button className={`opt-btn ${opt.birdie?'active':''}`} disabled>バーディ</button>
-                                                    <button className={`opt-btn ${opt.eagle?'active-gold':''}`} disabled>イーグル</button>
+                                                    <button className={`opt-btn ${playerOptions[p.id].birdie?'active':''}`} disabled>バーディ</button>
+                                                    <button className={`opt-btn ${playerOptions[p.id].eagle?'active-gold':''}`} disabled>イーグル</button>
                                                     <button className={`opt-btn ${playerOptions[p.id].four || pastFour > 0 ? 'achieved' : 'placeholder'}`} disabled>4カード{pastFour+(playerOptions[p.id].four?1:0)>1?` x${pastFour+(playerOptions[p.id].four?1:0)}`:''}</button>
                                                     <button className={`opt-btn ${playerOptions[p.id].straight || pastStraight > 0 ? 'achieved' : 'placeholder'}`} disabled>ストレート{pastStraight+(playerOptions[p.id].straight?1:0)>1?` x${pastStraight+(playerOptions[p.id].straight?1:0)}`:''}</button>
                                                 </div>
@@ -639,7 +710,7 @@
                         </div>
                     )}
 
-                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-50 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press" style={{background: 'linear-gradient(to right, #16a34a, #22c55e)'}}>計算して次のホールへ</button>
+                    <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press">計算して次のホールへ</button>
 
                     {game.scores.length > 0 && (
                         <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 前のホールを修正する</button>
@@ -651,7 +722,7 @@
 
                     {setupConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                            <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl">
                                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-gear text-blue-500 text-3xl"></i></div>
                                 <h3 className="text-gray-800 text-lg font-black mb-2">設定のやり直し</h3>
                                 <p className="text-gray-500 text-sm mb-6 leading-relaxed">設定画面に戻りますか？<br/>現在のゲームデータは破棄されます。</p>
@@ -661,10 +732,10 @@
                     )}
                     {undoConfirm && (
                          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[110] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                            <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl">
                                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl"></i></div>
                                 <h3 className="text-gray-800 text-lg font-black mb-2">修正</h3>
-                                <p className="text-gray-500 text-sm mb-6">前の入力を取り消しますか？</p>
+                                <p className="text-gray-500 text-sm mb-6">取り消しますか？</p>
                                 <div className="flex gap-3"><button onClick={() => setUndoConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">戻る</button><button onClick={handleUndoLastHole} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">修正する</button></div>
                             </div>
                         </div>
@@ -696,6 +767,8 @@
         const HistorySection = ({ game, players }) => {
             if (!game.scores || game.scores.length === 0) return null;
             const medalIcons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
+            const isThree = game.players.length === 3;
+
             return (
                 <div className="space-y-6 mt-8">
                     {game.settings.vegas && (
@@ -704,7 +777,16 @@
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                    <tbody>{game.scores.map((h, i) => (<tr key={i} className="border-b border-gray-50"><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { const vP = h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff; return <td key={p.id} className="p-2"><div className={`font-black px-1.5 rounded-md py-1 ${vP > 0 ? 'text-blue-600 bg-blue-50' : vP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>{vP > 0 ? '+' : ''}{vP}</div></td>;})}</tr>))}</tbody>
+                                    <tbody>{game.scores.map((h, i) => (<tr key={i} className="border-b border-gray-50"><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { 
+                                        let vP = 0;
+                                        if (isThree) {
+                                            if (h.teams.t1.includes(p.id)) vP = h.vegasDiff;
+                                            else vP = -h.vegasDiff * 2;
+                                        } else {
+                                            vP = h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff;
+                                        }
+                                        return <td key={p.id} className="p-2"><div className={`font-black px-1.5 rounded-md py-1 ${vP > 0 ? 'text-blue-600 bg-blue-50' : vP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>{vP > 0 ? '+' : ''}{vP}</div></td>;
+                                    })}</tr>))}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -731,7 +813,6 @@
                                         {players.map(p => {
                                             const s = h.scores[p.id] === '' ? '-' : parseInt(h.scores[p.id]);
                                             const d = s === '-' ? null : s - h.par;
-                                            // Eの時は黒文字(text-black)
                                             return <td key={p.id} className="p-2"><div className={`text-[11px] font-black rounded-md py-1 ${d === null ? 'text-gray-400 bg-gray-50' : d < 0 ? 'text-blue-600 bg-blue-50' : d > 0 ? 'text-red-500 bg-red-50' : 'text-black bg-gray-100'}`}>{s}</div></td>;
                                         })}
                                     </tr>
@@ -754,7 +835,7 @@
             };
             return (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
+                    <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
                         <h3 className="text-gray-800 text-xl font-black mb-4 mt-2 tracking-tighter">結果一覧</h3>
                         <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6">
@@ -765,8 +846,7 @@
                                 <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100"><h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase border-b border-yellow-200 pb-1 text-left">Olympic Results (授受点)</h4><div className="space-y-2">{players.map(p => { const r = calcOlympicRelative(p.id, game.totalOlympicPoints); return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><div className="flex items-center gap-2"><span className={r >= 0 ? 'text-blue-600' : 'text-red-500'}>{r > 0 ? '+' : ''}{r}</span><span className="text-[10px] text-gray-400 font-medium">({game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]})</span></div></div>;})}</div></div>
                             )}
                             <div className="p-4 rounded-2xl bg-green-50 border border-green-100"><h4 className="text-[10px] font-bold text-green-600 mb-3 uppercase border-b border-green-200 pb-1 text-left">Stroke Score</h4><div className="space-y-2">{players.map(p => { const res = getPlayerScore(p.id); 
-                                // Eの時は黒文字(text-black)
-                                const diffColorClass = res.diff === 0 ? 'text-black' : (res.diff > 0 ? 'text-red-600' : 'text-blue-600');
+                                const diffColorClass = res.diff === 0 ? 'text-black' : (res.diff > 0 ? 'text-red-500' : 'text-blue-600');
                                 return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600 w-16 truncate text-left">{p.name}</span><div className="flex-1 flex justify-end items-center gap-3"><span className="text-[10px] text-gray-700">O:{res.out}</span><span className="text-[10px] text-gray-700">I:{res.in}</span><span className="text-sm text-gray-800 font-black">T:{res.total}</span><span className={`min-w-[28px] text-right text-sm font-black ${diffColorClass}`}>{res.diff === 0 ? 'E' : (res.diff > 0 ? '+' + res.diff : res.diff)}</span></div></div>;
                             })}</div></div>
                         </div>
@@ -774,7 +854,7 @@
                     </div>
                     {showEndConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl"><h3 className="text-gray-800 text-lg font-black mb-2">終了確認</h3><p className="text-gray-500 text-sm mb-6 leading-relaxed">終了して戻りますか？</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button><button onClick={onEnd} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button></div></div>
+                            <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl"><h3 className="text-gray-800 text-lg font-black mb-2">終了確認</h3><p className="text-gray-500 text-sm mb-6 leading-relaxed">終了して戻りますか？</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button><button onClick={onEnd} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button></div></div>
                         </div>
                     )}
                 </div>
