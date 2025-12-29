@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -144,6 +145,7 @@
             const [games, setGames] = useState([]);
             const [activeGameId, setActiveGameId] = useState(null);
             const [showExitConfirm, setShowExitConfirm] = useState(false);
+            const [showRules, setShowRules] = useState(false);
 
             const [setupInfo, setSetupInfo] = useState({
                 course: '',
@@ -155,7 +157,7 @@
                     { name: '', order: 3 },
                     { name: '', order: 4 }
                 ],
-                settings: { vegas: true, olympic: true }
+                settings: { vegas: true, olympic: true, vegasLogic: 'basic' }
             });
 
             const navigateTo = (nextView) => {
@@ -209,12 +211,15 @@
                             <i className="fa-solid fa-golf-ball-tee"></i> V & O golf
                         </h1>
                         <div className="flex gap-2 items-center flex-shrink-0">
+                            <button onClick={() => setShowRules(true)} className="text-xs bg-green-600/50 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-800 text-white border border-green-500/30">
+                                <i className="fa-solid fa-circle-info"></i>
+                            </button>
                             {view !== 'HOME' && (
                                 <button 
                                     onClick={() => setShowExitConfirm(true)} 
                                     className="text-xs bg-red-600 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-red-700 text-white border border-red-500"
                                 >
-                                    終了する
+                                    終了
                                 </button>
                             )}
                             <button onClick={() => window.location.reload()} className="text-xs bg-green-800 px-3 py-2 rounded-lg font-bold shadow-sm active:bg-green-900 text-white border border-green-600/50">
@@ -268,9 +273,51 @@
                             </div>
                         </div>
                     )}
+
+                    {showRules && <RulesModal onClose={() => setShowRules(false)} />}
                 </div>
             );
         };
+
+        const RulesModal = ({ onClose }) => (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[300] backdrop-blur-sm animate-fade-in">
+                <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
+                    <h3 className="text-gray-800 text-xl font-black mb-4 text-center">ルール一覧</h3>
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-6 text-xs text-gray-600 leading-relaxed">
+                        <section>
+                            <h4 className="font-bold text-blue-600 border-b border-blue-100 pb-1 mb-2">ラスベガス (Vegas)</h4>
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li><strong>チーム分け:</strong> 基本は打順1&4 vs 2&3 (3人時は1&3 vs 2位×2)　オリジナル設定時は毎コース手動で指定</li>
+                                <li><strong>点数算出:</strong> チーム2人のスコアを小→大の順に並べた2桁同士の差で比較し、5点単位切り上げ</li>
+                                <li><strong>入れ替え:</strong> 相手がバーディ以上で自分の数字が大→小へ</li>
+                                <li><strong>改善:</strong> 相手がイーグル以上で自分の数字が小→小(ゾロ目)へ</li>
+                                <li><strong>倍率:</strong> イーグル獲得、またはチーム2人バーディで2倍</li>
+                                <li><strong>キャリー:</strong> 同点時は次ホール倍率+1で持ち越し</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h4 className="font-bold text-yellow-600 border-b border-yellow-100 pb-1 mb-2">オリンピック (Olympic)</h4>
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li><strong>メダル:</strong> 💎5点、🥇4点、🥈3点、🥉2点、🔩1点</li>
+                                <li><strong>制限:</strong> 3人時は🔩なし</li>
+                                <li><strong>イーグル点:</strong> イーグルで15点</li>
+                                <li><strong>バーディ点:</strong> バーディで3点</li>
+                                <li><strong>竿いち:</strong> 竿宣言成功で3点、失敗で-3点</li>
+                                <li><strong>砂いち:</strong> バンカー→ワンパット成功で3点</li>
+                               <li><strong>ニアピン:</strong> Par3ワンオン成功で3点、ただし３パットなら無効</li>
+                                <li><strong>逆オリ:</strong> 💎-5点、🥇-4点、🥈-3点、🥉-2点、🔩-1点</li>
+                                <li><strong>4カード:</strong> 同色4枚でメダル点×4倍。</li>
+                                <li><strong>ストレート:</strong> 金銀銅鉄の4種で10点(💎込なら15点)。</li>
+                                <li><strong>最終算出:</strong> (持点×人数) - 全員合計点。</li>
+                            </ul>
+                        </section>
+                       
+                    </div>
+                    <button onClick={onClose} className="w-full mt-6 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">閉じる</button>
+                </div>
+            </div>
+        );
 
         const HomeScreen = ({ games, onNew, onSelect, onDelete }) => {
             const [deleteTarget, setDeleteTarget] = useState(null);
@@ -331,7 +378,7 @@
                     </div>
                     {deleteTarget && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[210] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                            <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl">
                                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-trash-can text-red-500 text-3xl"></i></div>
                                 <h3 className="text-gray-800 text-lg font-black mb-2">履歴の削除</h3>
                                 <p className="text-gray-500 text-sm mb-6">完全に削除しますか？</p>
@@ -407,7 +454,25 @@
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">モード</label>
                             <div className="bg-gray-50 p-4 rounded-xl space-y-3">
-                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">ラスベガス (チーム戦)</span><label className="switch"><input type="checkbox" checked={setupInfo.settings.vegas} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegas: !setupInfo.settings.vegas}})} /><span className="slider"></span></label></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-700">ラスベガス (チーム戦)</span>
+                                    <label className="switch"><input type="checkbox" checked={setupInfo.settings.vegas} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegas: !setupInfo.settings.vegas}})} /><span className="slider"></span></label>
+                                </div>
+                                {setupInfo.settings.vegas && (
+                                    <div className="pl-4 py-2 border-l-2 border-blue-200 animate-fade-in">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">チーム分けルール</label>
+                                        <div className="flex bg-white rounded-lg p-1 border">
+                                            <button 
+                                                onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'basic'}})}
+                                                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'basic' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
+                                            >基本(14vs23)</button>
+                                            <button 
+                                                onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'original'}})}
+                                                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'original' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
+                                            >オリジナル(手動)</button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span><label className="switch"><input type="checkbox" checked={setupInfo.settings.olympic} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, olympic: !setupInfo.settings.olympic}})} /><span className="slider"></span></label></div>
                             </div>
                         </div>
@@ -447,6 +512,9 @@
             const [undoConfirm, setUndoConfirm] = useState(false); 
             const [setupConfirm, setSetupConfirm] = useState(false);
 
+            const isThree = game.players.length === 3;
+            const [manualTeamA, setManualTeamA] = useState([]);
+
             const initialOpts = {
                 rodState: 0, sand: false, near: false, reverse: false, 
                 birdie: false, eagle: false, four: false, straight: false, manualAdj: ''
@@ -478,6 +546,13 @@
             };
 
             useEffect(() => {
+                if (game.settings.vegasLogic === 'original') {
+                    const defaultA = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
+                    setManualTeamA(defaultA);
+                }
+            }, [game.currentHole, game.settings.vegasLogic]);
+
+            useEffect(() => {
                 setPlayerOptions(prev => {
                     const next = { ...prev };
                     game.players.forEach(p => {
@@ -506,22 +581,46 @@
                 return Object.entries(olympicMedals).reduce((acc, [id, type]) => { acc[type] = id; return acc; }, {});
             }, [olympicMedals]);
 
+            const toggleManualTeam = (pid) => {
+                setManualTeamA(prev => {
+                    if (prev.includes(pid)) {
+                        return prev.filter(id => id !== pid);
+                    } else {
+                        if (prev.length < 2) return [...prev, pid];
+                        return prev;
+                    }
+                });
+            };
+
             const handleCalculateAndSave = () => {
                 for(let p of game.players) { if(scores[p.id] === '') { alert('全員のスコアを入力してください'); return; } }
+                
+                let team1, team2;
+                if (game.settings.vegasLogic === 'original') {
+                    if (isThree) {
+                        if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください（残りの1名が2倍となります）'); return; }
+                        team1 = manualTeamA;
+                        const singletonId = game.players.find(p => !manualTeamA.includes(p.id)).id;
+                        team2 = [singletonId, singletonId];
+                    } else {
+                        if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください'); return; }
+                        team1 = manualTeamA;
+                        team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
+                    }
+                } else {
+                    if (isThree) {
+                        team1 = [game.currentOrder[0], game.currentOrder[2]];
+                        team2 = [game.currentOrder[1], game.currentOrder[1]];
+                    } else {
+                        team1 = [game.currentOrder[0], game.currentOrder[3]];
+                        team2 = [game.currentOrder[1], game.currentOrder[2]];
+                    }
+                }
+
                 const s = (pid) => parseInt(scores[pid]);
                 let vegasDiff = 0, olympicPoints = game.players.reduce((a,p)=>({...a,[p.id]:0}),{});
                 const currentMultiplier = game.vegasMultiplier || 1;
                 
-                const isThree = game.players.length === 3;
-                let team1, team2;
-                if (isThree) {
-                    team1 = [game.currentOrder[0], game.currentOrder[2]];
-                    team2 = [game.currentOrder[1], game.currentOrder[1]];
-                } else {
-                    team1 = [game.currentOrder[0], game.currentOrder[3]];
-                    team2 = [game.currentOrder[1], game.currentOrder[2]];
-                }
-
                 if (game.settings.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
                     let p1 = Math.min(...t1S) * 10 + Math.max(...t1S), p2 = Math.min(...t2S) * 10 + Math.max(...t2S);
@@ -557,7 +656,7 @@
 
                 const newHistory = [...game.scores, { 
                     hole: game.currentHole, par, vegasDiff, olympicPoints, scores: { ...scores }, 
-                    teams: { t1: team1, t2: team2 }, medals: { ...olympicMedals }, orderBefore: [...game.currentOrder],
+                    teams: { t1: team1, t2: Array.from(new Set(team2)) }, medals: { ...olympicMedals }, orderBefore: [...game.currentOrder],
                     multiplierUsed: currentMultiplier, achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
                 }];
                 
@@ -587,8 +686,7 @@
             const handleUndoLastHole = () => {
                 const last = [...game.scores].pop(); 
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
-                const isThree = game.players.length === 3;
-
+                
                 game.players.forEach(p => {
                     if (isThree) {
                         if (last.teams.t1.includes(p.id)) newVegasTotal[p.id] -= last.vegasDiff;
@@ -604,15 +702,19 @@
                     vegasMultiplier: last.multiplierUsed, scores: game.scores.slice(0,-1)
                 });
                 setUndoConfirm(false);
-                // 修正実行後にトップへスクロール
                 setTimeout(() => {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }, 50);
             };
 
-            const isThree = game.players.length === 3;
-            const team1 = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
-            const team2 = isThree ? [game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]];
+            let team1, team2;
+            if (game.settings.vegasLogic === 'original') {
+                team1 = manualTeamA;
+                team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
+            } else {
+                team1 = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
+                team2 = isThree ? [game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]];
+            }
 
             return (
                 <div className="pb-8">
@@ -635,9 +737,26 @@
 
                     {game.settings.vegas && (
                         <div className="space-y-3">
-                            <TeamCard color="blue" label="チーム A" pIds={team1} players={game.players} scores={scores} setScores={setScores} par={par} />
+                            {game.settings.vegasLogic === 'original' && (
+                                <div className="bg-white p-3 rounded-xl border-2 border-dashed border-gray-200 mb-4 animate-fade-in">
+                                    <label className="block text-[10px] font-bold text-blue-600 mb-2 uppercase text-center">チーム選択 (2名選択で先行チーム)</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {game.players.map(p => (
+                                            <button 
+                                                key={p.id}
+                                                onClick={() => toggleManualTeam(p.id)}
+                                                className={`py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border-2 ${manualTeamA.includes(p.id) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-400'}`}
+                                            >
+                                                {manualTeamA.includes(p.id) ? <i className="fa-solid fa-check"></i> : null}
+                                                {p.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <TeamCard color="blue" label="先行チーム" pIds={team1} players={game.players} scores={scores} setScores={setScores} par={par} />
                             <div className="text-center font-bold text-gray-300 text-xs tracking-widest uppercase">vs</div>
-                            <TeamCard color="red" label={isThree ? "2位 (×2)" : "チーム B"} pIds={team2} players={game.players} scores={scores} setScores={setScores} par={par} />
+                            <TeamCard color="red" label={isThree ? "2位 (×2)" : "後攻チーム"} pIds={team2} players={game.players} scores={scores} setScores={setScores} par={par} />
                         </div>
                     )}
 
