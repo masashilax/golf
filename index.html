@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- iOS Web App settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="V & O golf">
@@ -133,10 +132,11 @@
         const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
         const calcOlympicRelative = (pId, allPointsMap) => {
-            const pIds = Object.keys(allPointsMap);
+            const dataMap = allPointsMap || {};
+            const pIds = Object.keys(dataMap);
             if (pIds.length === 0) return 0;
-            const myPoint = allPointsMap[pId] || 0;
-            const totalSum = pIds.reduce((sum, id) => sum + (allPointsMap[id] || 0), 0);
+            const myPoint = dataMap[pId] || 0;
+            const totalSum = pIds.reduce((sum, id) => sum + (dataMap[id] || 0), 0);
             return (myPoint * pIds.length) - totalSum;
         };
 
@@ -167,7 +167,13 @@
 
             useEffect(() => {
                 const saved = localStorage.getItem('golf_vegas_data');
-                if (saved) setGames(JSON.parse(saved));
+                if (saved) {
+                    try {
+                        setGames(JSON.parse(saved));
+                    } catch(e) {
+                        setGames([]);
+                    }
+                }
             }, []);
 
             useEffect(() => {
@@ -179,13 +185,13 @@
                     id: generateId(),
                     date: finalSetup.date,
                     course: finalSetup.course,
-                    players: finalSetup.players,
+                    players: finalSetup.players || [],
                     scores: [],
                     currentHole: finalSetup.startHole || 1,
-                    currentOrder: finalSetup.currentOrder,
-                    totalVegasPoints: finalSetup.players.reduce((a,p)=>({...a,[p.id]:0}),{}),
-                    totalOlympicPoints: finalSetup.players.reduce((a,p)=>({...a,[p.id]:0}),{}),
-                    settings: finalSetup.settings,
+                    currentOrder: finalSetup.currentOrder || [],
+                    totalVegasPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
+                    totalOlympicPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
+                    settings: finalSetup.settings || { vegas: true, olympic: true, vegasLogic: 'basic' },
                     vegasMultiplier: 1,
                     isFinished: false
                 };
@@ -317,7 +323,7 @@
                         {games.length === 0 && <p className="text-center text-gray-400 py-12 bg-white rounded-xl border border-dashed border-gray-300">履歴がありません</p>}
                         <div className="space-y-3">
                             {games.map(game => {
-                                const totalPar = game.scores.reduce((sum, h) => sum + h.par, 0);
+                                const totalPar = (game.scores || []).reduce((sum, h) => sum + (h.par || 0), 0);
                                 return (
                                     <div key={game.id} onClick={() => onSelect(game.id)} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition cursor-pointer relative overflow-hidden btn-press">
                                         <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500"></div>
@@ -337,10 +343,10 @@
                                             </button>
                                         </div>
                                         <div className="pl-3 grid grid-cols-2 gap-x-2 gap-y-2">
-                                            {game.players.map((p, i) => {
-                                                const vP = game.totalVegasPoints ? game.totalVegasPoints[p.id] : 0;
+                                            {(game.players || []).map((p, i) => {
+                                                const vP = game.totalVegasPoints ? (game.totalVegasPoints[p.id] || 0) : 0;
                                                 const relOP = calcOlympicRelative(p.id, game.totalOlympicPoints || {});
-                                                const totalStrokes = game.scores.reduce((sum, h) => sum + (parseInt(h.scores[p.id]) || 0), 0);
+                                                const totalStrokes = (game.scores || []).reduce((sum, h) => sum + (parseInt(h.scores?.[p.id]) || 0), 0);
                                                 const diff = totalStrokes - totalPar;
                                                 const diffText = diff === 0 ? 'E' : (diff > 0 ? '+' + diff : diff);
                                                 const diffColorClass = diff === 0 ? 'text-black' : (diff > 0 ? 'text-red-500' : 'text-blue-600');
@@ -391,8 +397,10 @@
 
                 const players = activePlayersData.map((p, i) => ({ id: String(i), name: p.name }));
                 const initialIds = players.map(p => p.id);
-                const currentOrder = initialIds.sort((a, b) => {
-                    return activePlayersData[parseInt(a)].order - activePlayersData[parseInt(b)].order;
+                const currentOrder = [...initialIds].sort((a, b) => {
+                    const orderA = activePlayersData[parseInt(a)]?.order || 0;
+                    const orderB = activePlayersData[parseInt(b)]?.order || 0;
+                    return orderA - orderB;
                 });
 
                 onCreate({ 
@@ -494,31 +502,29 @@
 
         const GameScreen = ({ game, onUpdate, onBack, onRestartSetup }) => {
             const [par, setPar] = useState(4);
-            const [scores, setScores] = useState(game.players.reduce((a,p)=>({...a,[p.id]:''}),{}));
+            const [scores, setScores] = useState((game.players || []).reduce((a,p)=>({...a,[p.id]:''}),{}));
             const [showFinal, setShowFinal] = useState(false);
-            const [showOlympic, setShowOlympic] = useState(game.settings.olympic || !game.settings.vegas);
+            const [showOlympic, setShowOlympic] = useState(game.settings?.olympic || !game.settings?.vegas);
             const [olympicMedals, setOlympicMedals] = useState({}); 
             const [undoConfirm, setUndoConfirm] = useState(false); 
             const [setupConfirm, setSetupConfirm] = useState(false);
             const [editingIndex, setEditingIndex] = useState(null);
 
-            const isThree = game.players.length === 3;
+            const isThree = (game.players || []).length === 3;
             const [manualTeamA, setManualTeamA] = useState([]);
 
             const initialOpts = {
                 rodState: 0, sand: false, near: false, reverse: false, 
                 birdie: false, eagle: false, four: false, straight: false, manualAdj: ''
             };
-            const [playerOptions, setPlayerOptions] = useState(game.players.reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
+            const [playerOptions, setPlayerOptions] = useState((game.players || []).reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
 
             const MEDAL_PTS = { diamond: 5, gold: 4, silver: 3, bronze: 2, iron: 1 };
             const MEDAL_REVERSE_PTS = { diamond: -5, gold: -1, silver: -2, bronze: -3, iron: -4 };
 
-            // 実績算出用：編集中のホールデータと、そのホールの逆オリ設定を除外してカウント
             const getAchievementCounts = (pId, currentMedal, currentIsReverse) => {
                 let counts = { diamond: 0, gold: 0, silver: 0, bronze: 0, iron: 0 };
-                game.scores.forEach((h, idx) => {
-                    // 修正中は、その修正対象ホールの過去データをカウントしない
+                (game.scores || []).forEach((h, idx) => {
                     if (editingIndex === idx) return;
                     const m = h.medals && h.medals[pId];
                     const wasReverse = h.reverseStates && h.reverseStates[pId];
@@ -543,18 +549,17 @@
             };
 
             useEffect(() => {
-                if (game.settings.vegasLogic === 'original') {
+                if (game.settings?.vegasLogic === 'original' && game.currentOrder) {
                     const defaultA = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
-                    setManualTeamA(defaultA);
+                    setManualTeamA(defaultA.filter(id => id !== undefined));
                 }
-            }, [game.currentHole, game.settings.vegasLogic]);
+            }, [game.currentHole, game.settings?.vegasLogic]);
 
-            // 実績計算ロジック
             useEffect(() => {
                 setPlayerOptions(prev => {
                     const next = { ...prev };
-                    game.players.forEach(p => {
-                        const counts = getAchievementCounts(p.id, olympicMedals[p.id], next[p.id].reverse);
+                    (game.players || []).forEach(p => {
+                        const counts = getAchievementCounts(p.id, olympicMedals[p.id], next[p.id]?.reverse);
                         const prevCounts = getAchievementCounts(p.id, null, false); 
                         
                         let isFourCard = false;
@@ -566,11 +571,12 @@
                         const sVal = parseInt(scores[p.id]);
 
                         next[p.id] = { 
+                            ...initialOpts,
                             ...next[p.id], 
                             four: isFourCard, 
                             straight: isStraight,
-                            birdie: !isNaN(sVal) ? sVal === par - 1 : next[p.id].birdie,
-                            eagle: !isNaN(sVal) ? sVal <= par - 2 : next[p.id].eagle
+                            birdie: !isNaN(sVal) ? sVal === par - 1 : (next[p.id]?.birdie || false),
+                            eagle: !isNaN(sVal) ? sVal <= par - 2 : (next[p.id]?.eagle || false)
                         };
                     });
                     return next;
@@ -590,46 +596,44 @@
             };
 
             const handleCalculateAndSave = () => {
-                for(let p of game.players) { if(scores[p.id] === '') { alert('全員のスコアを入力してください'); return; } }
+                for(let p of (game.players || [])) { if(scores[p.id] === '') { alert('全員のスコアを入力してください'); return; } }
+                const s = (pid) => parseInt(scores[pid]) || 0;
                 
-                const s = (pid) => parseInt(scores[pid]);
-                
-                let team1, team2;
-                // 修正モードの場合のチーム設定ロジック
+                let team1 = [], team2 = [];
                 if (editingIndex !== null) {
-                     if (game.settings.vegasLogic === 'original') {
+                     const targetHole = game.scores[editingIndex];
+                     if (game.settings?.vegasLogic === 'original') {
                         team1 = manualTeamA;
-                        team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
+                        team2 = (game.players || []).filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
                         if (isThree) team2 = [team2[0], team2[0]];
                      } else {
-                        // 修正時の基本ルール：当時の打順に基づいてチームを再構成
-                        const order = game.scores[editingIndex].orderBefore;
+                        const order = targetHole.orderBefore || [];
                         team1 = isThree ? [order[0], order[2]] : [order[0], order[3]];
                         team2 = isThree ? [order[1], order[1]] : [order[1], order[2]];
                      }
                 } else {
-                    // 通常入力時
-                    if (game.settings.vegasLogic === 'original') {
+                    if (game.settings?.vegasLogic === 'original') {
                         if (isThree) {
                             if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください'); return; }
                             team1 = manualTeamA;
-                            const singletonId = game.players.find(p => !manualTeamA.includes(p.id)).id;
+                            const singletonId = (game.players || []).find(p => !manualTeamA.includes(p.id))?.id;
                             team2 = [singletonId, singletonId];
                         } else {
                             if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください'); return; }
                             team1 = manualTeamA;
-                            team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
+                            team2 = (game.players || []).filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
                         }
                     } else {
-                        team1 = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
-                        team2 = isThree ? [game.currentOrder[1], game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]];
+                        const order = game.currentOrder || [];
+                        team1 = isThree ? [order[0], order[2]] : [order[0], order[3]];
+                        team2 = isThree ? [order[1], order[1]] : [order[1], order[2]];
                     }
                 }
 
                 let vegasDiff = 0, olympicPoints = {};
-                const currentMultiplier = editingIndex !== null ? game.scores[editingIndex].multiplierUsed : (game.vegasMultiplier || 1);
+                const currentMultiplier = editingIndex !== null ? (game.scores[editingIndex]?.multiplierUsed || 1) : (game.vegasMultiplier || 1);
                 
-                if (game.settings.vegas) {
+                if (game.settings?.vegas) {
                     const t1S = team1.map(pid => s(pid)), t2S = team2.map(pid => s(pid));
                     let p1 = Math.min(...t1S) * 10 + Math.max(...t1S), p2 = Math.min(...t2S) * 10 + Math.max(...t2S);
                     const checkV = (scs) => {
@@ -643,8 +647,9 @@
                     vegasDiff = (Math.ceil(Math.abs(p2 - p1) * mult / 5) * 5) * (p2 - p1 < 0 ? -1 : 1) * currentMultiplier;
                 }
 
-                game.players.forEach(p => {
-                    const opt = playerOptions[p.id], medal = olympicMedals[p.id];
+                (game.players || []).forEach(p => {
+                    const opt = playerOptions[p.id] || initialOpts;
+                    const medal = olympicMedals[p.id];
                     let pts = 0;
                     if (s(p.id) === par - 1) pts += 3; else if (s(p.id) <= par - 2) pts += 15;
                     if (opt.sand) pts += 3; if (opt.rodState === 1) pts += 3; else if (opt.rodState === -1) pts -= 3;
@@ -663,48 +668,45 @@
                 const updatedHoleData = { 
                     hole: editingIndex !== null ? game.scores[editingIndex].hole : game.currentHole, 
                     par, vegasDiff, olympicPoints, scores: { ...scores }, 
-                    teams: { t1: team1, t2: Array.from(new Set(team2)) }, medals: { ...olympicMedals }, 
-                    reverseStates: game.players.reduce((a,p)=>({...a,[p.id]:!!playerOptions[p.id].reverse}), {}),
-                    orderBefore: editingIndex !== null ? game.scores[editingIndex].orderBefore : [...game.currentOrder],
+                    teams: { t1: team1, t2: Array.from(new Set(team2.filter(x => x !== undefined))) }, medals: { ...olympicMedals }, 
+                    reverseStates: (game.players || []).reduce((a,p)=>({...a,[p.id]:!!playerOptions[p.id]?.reverse}), {}),
+                    orderBefore: editingIndex !== null ? (game.scores[editingIndex].orderBefore || []) : [...(game.currentOrder || [])],
                     multiplierUsed: currentMultiplier,
-                    achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
+                    achievements: (game.players || []).reduce((a,p)=>({...a,[p.id]:{four:!!playerOptions[p.id]?.four,straight:!!playerOptions[p.id]?.straight}}),{})
                 };
 
-                // 履歴の更新または追加
-                let newHistory = [...game.scores];
+                let newHistory = [...(game.scores || [])];
                 if (editingIndex !== null) {
                     newHistory[editingIndex] = updatedHoleData;
                 } else {
                     newHistory.push(updatedHoleData);
                 }
                 
-                // 全履歴から合計を再計算
-                const newVegasTotal = game.players.reduce((a,p)=>({...a,[p.id]:0}),{});
-                const newOlympicTotal = game.players.reduce((a,p)=>({...a,[p.id]:0}),{});
+                const newVegasTotal = (game.players || []).reduce((a,p)=>({...a,[p.id]:0}),{});
+                const newOlympicTotal = (game.players || []).reduce((a,p)=>({...a,[p.id]:0}),{});
                 
                 newHistory.forEach(h => {
-                    game.players.forEach(p => {
-                        if (isThree) {
-                            if (h.teams.t1.includes(p.id)) newVegasTotal[p.id] += h.vegasDiff;
-                            else newVegasTotal[p.id] += (-h.vegasDiff * 2);
-                        } else {
-                            newVegasTotal[p.id] += (h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff);
+                    (game.players || []).forEach(p => {
+                        if (h.teams?.t1 && h.teams?.t2) {
+                            if (isThree) {
+                                if (h.teams.t1.includes(p.id)) newVegasTotal[p.id] += h.vegasDiff;
+                                else newVegasTotal[p.id] += (-h.vegasDiff * 2);
+                            } else {
+                                newVegasTotal[p.id] += (h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff);
+                            }
                         }
-                        newOlympicTotal[p.id] += h.olympicPoints[p.id];
+                        newOlympicTotal[p.id] += (h.olympicPoints?.[p.id] || 0);
                     });
                 });
 
-                // 次のホールの打順計算
-                // 修正モードの場合は、現在の打順を変えない（あるいは修正後の最終ホールに基づき再計算してもよいが、今回は変えないでおく）
                 const nextOrder = editingIndex !== null 
-                    ? game.currentOrder 
-                    : [...game.currentOrder].sort((a,b) => s(a)-s(b) || game.currentOrder.indexOf(a)-game.currentOrder.indexOf(b));
+                    ? (game.currentOrder || []) 
+                    : [...(game.currentOrder || [])].sort((a,b) => s(a)-s(b) || (game.currentOrder || []).indexOf(a)-(game.currentOrder || []).indexOf(b));
 
                 const nextHole = editingIndex !== null ? game.currentHole : (game.currentHole === 18 ? 1 : game.currentHole + 1);
                 
-                // 次のホールの倍率計算（修正時は変更しない、新規時は同点なら+1）
                 let nextMult = game.vegasMultiplier || 1;
-                if (editingIndex === null && game.settings.vegas && vegasDiff === 0) {
+                if (editingIndex === null && game.settings?.vegas && vegasDiff === 0) {
                     nextMult += 1;
                 } else if (editingIndex === null) {
                     nextMult = 1;
@@ -719,28 +721,28 @@
                     scores: newHistory 
                 });
 
-                setScores(game.players.reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4);
-                setPlayerOptions(game.players.reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
+                setScores((game.players || []).reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4);
+                setPlayerOptions((game.players || []).reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
                 setEditingIndex(null);
                 scrollToTop();
             };
 
             const startEditHole = (index) => {
                 const targetHole = game.scores[index];
-                setPar(targetHole.par);
-                setScores(targetHole.scores);
-                setOlympicMedals(targetHole.medals);
+                if (!targetHole) return;
+                setPar(targetHole.par || 4);
+                setScores(targetHole.scores || {});
+                setOlympicMedals(targetHole.medals || {});
                 
-                // 手動チーム分けモードなら復元
-                if (game.settings.vegasLogic === 'original') {
+                if (game.settings?.vegasLogic === 'original' && targetHole.teams?.t1) {
                     setManualTeamA(targetHole.teams.t1);
                 }
 
                 setPlayerOptions(prev => {
                     const next = {...prev};
-                    game.players.forEach(p => {
-                        // 逆オリフラグを復元
-                        next[p.id] = { ...initialOpts, reverse: !!targetHole.reverseStates[p.id] };
+                    (game.players || []).forEach(p => {
+                        const isReverse = !!(targetHole.reverseStates && targetHole.reverseStates[p.id]);
+                        next[p.id] = { ...initialOpts, reverse: isReverse };
                     });
                     return next;
                 });
@@ -750,21 +752,26 @@
             };
 
             const handleUndoLastHole = () => {
-                const last = [...game.scores].pop(); 
-                const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
-                game.players.forEach(p => {
-                    if (isThree) {
-                        if (last.teams.t1.includes(p.id)) newVegasTotal[p.id] -= last.vegasDiff;
-                        else newVegasTotal[p.id] -= (-last.vegasDiff * 2);
-                    } else {
-                        newVegasTotal[p.id] -= (last.teams.t1.includes(p.id) ? last.vegasDiff : -last.vegasDiff);
+                const history = [...(game.scores || [])];
+                const last = history.pop();
+                if (!last) return;
+                
+                const newVegasTotal = { ...(game.totalVegasPoints || {}) }, newOlympicTotal = { ...(game.totalOlympicPoints || {}) };
+                (game.players || []).forEach(p => {
+                    if (last.teams?.t1) {
+                        if (isThree) {
+                            if (last.teams.t1.includes(p.id)) newVegasTotal[p.id] = (newVegasTotal[p.id] || 0) - last.vegasDiff;
+                            else newVegasTotal[p.id] = (newVegasTotal[p.id] || 0) - (-last.vegasDiff * 2);
+                        } else {
+                            newVegasTotal[p.id] = (newVegasTotal[p.id] || 0) - (last.teams.t1.includes(p.id) ? last.vegasDiff : -last.vegasDiff);
+                        }
                     }
-                    newOlympicTotal[p.id] -= (last.olympicPoints[p.id] || 0);
+                    newOlympicTotal[p.id] = (newOlympicTotal[p.id] || 0) - (last.olympicPoints?.[p.id] || 0);
                 });
                 onUpdate({ 
-                    ...game, currentHole: last.hole, currentOrder: last.orderBefore, 
+                    ...game, currentHole: last.hole, currentOrder: last.orderBefore || [], 
                     totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, 
-                    vegasMultiplier: last.multiplierUsed, scores: game.scores.slice(0,-1)
+                    vegasMultiplier: last.multiplierUsed || 1, scores: history
                 });
                 setUndoConfirm(false);
                 setTimeout(() => scrollToTop(), 50);
@@ -772,22 +779,21 @@
 
             return (
                 <div className="pb-8">
-                    {/* 修正中表示 */}
                     {editingIndex !== null && (
                         <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 flex justify-between items-center rounded-r-lg shadow-sm animate-fade-in">
-                            <div className="font-bold text-sm">Hole {game.scores[editingIndex].hole} を修正中...</div>
-                            <button onClick={() => { setEditingIndex(null); setScores(game.players.reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4); }} className="text-xs bg-white border border-yellow-300 px-3 py-1.5 rounded font-bold shadow-sm text-gray-600">中断</button>
+                            <div className="font-bold text-sm">Hole {game.scores?.[editingIndex]?.hole} を修正中...</div>
+                            <button onClick={() => { setEditingIndex(null); setScores((game.players || []).reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4); }} className="text-xs bg-white border border-yellow-300 px-3 py-1.5 rounded font-bold shadow-sm text-gray-600">中断</button>
                         </div>
                     )}
 
-                    {game.scores.length === 0 && editingIndex === null && (
+                    {(game.scores || []).length === 0 && editingIndex === null && (
                         <div className="mb-4">
                             <button onClick={() => { setSetupConfirm(true); scrollToTop(); }} className="w-full py-2.5 bg-gray-200 text-gray-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:bg-gray-300 transition btn-press"><i className="fa-solid fa-gear"></i> 設定をやり直す</button>
                         </div>
                     )}
 
                     <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 text-center border border-gray-100 flex items-center justify-between">
-                        <h2 className="text-xl font-bold text-gray-800">Hole {editingIndex !== null ? game.scores[editingIndex].hole : game.currentHole}</h2>
+                        <h2 className="text-xl font-bold text-gray-800">Hole {editingIndex !== null ? game.scores?.[editingIndex]?.hole : game.currentHole}</h2>
                         <div className="flex bg-gray-100 rounded-lg p-1">
                             {[3, 4, 5].map(p => (
                                 <button key={p} onClick={() => setPar(p)} className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${par === p ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>Par {p}</button>
@@ -795,13 +801,13 @@
                         </div>
                     </div>
 
-                    {game.settings.vegas && (
+                    {game.settings?.vegas && (
                         <div className="space-y-3">
-                            {game.settings.vegasLogic === 'original' && (
+                            {game.settings?.vegasLogic === 'original' && (
                                 <div className="bg-white p-3 rounded-xl border-2 border-dashed border-gray-200 mb-4 animate-fade-in">
                                     <label className="block text-[10px] font-bold text-blue-600 mb-2 uppercase text-center">チーム選択 (2名選択で先行チーム)</label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {game.players.map(p => (
+                                        {(game.players || []).map(p => (
                                             <button key={p.id} onClick={() => toggleManualTeam(p.id)} className={`py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border-2 ${manualTeamA.includes(p.id) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-400'}`}>
                                                 {manualTeamA.includes(p.id) ? <i className="fa-solid fa-check"></i> : null}{p.name}
                                             </button>
@@ -809,30 +815,29 @@
                                     </div>
                                 </div>
                             )}
-                            <TeamCard color="blue" label="先行チーム" pIds={editingIndex !== null ? game.scores[editingIndex].teams.t1 : (game.settings.vegasLogic === 'original' ? manualTeamA : (isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]]))} players={game.players} scores={scores} setScores={setScores} par={par} />
+                            <TeamCard color="blue" label="先行チーム" pIds={editingIndex !== null ? (game.scores?.[editingIndex]?.teams?.t1 || []) : (game.settings?.vegasLogic === 'original' ? manualTeamA : (isThree ? [game.currentOrder?.[0], game.currentOrder?.[2]] : [game.currentOrder?.[0], game.currentOrder?.[3]]))} players={game.players || []} scores={scores} setScores={setScores} par={par} />
                             <div className="text-center font-bold text-gray-300 text-xs tracking-widest uppercase">vs</div>
-                            <TeamCard color="red" label={isThree ? "2位 (×2)" : "後攻チーム"} pIds={editingIndex !== null ? game.scores[editingIndex].teams.t2 : (game.settings.vegasLogic === 'original' ? game.players.filter(p=>!manualTeamA.includes(p.id)).map(p=>p.id).slice(0, isThree?1:2) : (isThree ? [game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]]))} players={game.players} scores={scores} setScores={setScores} par={par} />
+                            <TeamCard color="red" label={isThree ? "2位 (×2)" : "後攻チーム"} pIds={editingIndex !== null ? (game.scores?.[editingIndex]?.teams?.t2 || []) : (game.settings?.vegasLogic === 'original' ? (game.players || []).filter(p=>!manualTeamA.includes(p.id)).map(p=>p.id).slice(0, isThree?1:2) : (isThree ? [game.currentOrder?.[1]] : [game.currentOrder?.[1], game.currentOrder?.[2]]))} players={game.players || []} scores={scores} setScores={setScores} par={par} />
                         </div>
                     )}
 
-                    {game.settings.olympic && (
+                    {game.settings?.olympic && (
                         <div className="mt-6">
                             <button onClick={() => setShowOlympic(!showOlympic)} className="w-full py-3 bg-gray-200 rounded-xl font-bold flex items-center justify-center gap-2">
                                 <i className="fa-solid fa-medal"></i> オリンピック入力 {showOlympic ? '▲' : '▼'}
                             </button>
-                            {(showOlympic || !game.settings.vegas) && (
+                            {(showOlympic || !game.settings?.vegas) && (
                                 <div className="mt-2 bg-white rounded-xl shadow-sm p-3 border border-yellow-200 space-y-6 animate-fade-in">
-                                    {game.players.map(p => {
-                                        const opt = playerOptions[p.id];
-                                        // 修正中は過去の実績カウントに現在の入力を含めないように注意（getAchievementCountsで処理済）
-                                        const pastFour = game.scores.filter((h, idx) => idx !== editingIndex && h.achievements?.[p.id]?.four).length;
-                                        const pastStraight = game.scores.filter((h, idx) => idx !== editingIndex && h.achievements?.[p.id]?.straight).length;
+                                    {(game.players || []).map(p => {
+                                        const opt = playerOptions[p.id] || initialOpts;
+                                        const pastFour = (game.scores || []).filter((h, idx) => idx !== editingIndex && h.achievements?.[p.id]?.four).length;
+                                        const pastStraight = (game.scores || []).filter((h, idx) => idx !== editingIndex && h.achievements?.[p.id]?.straight).length;
                                         return (
                                             <div key={p.id} className="border-b border-gray-50 pb-3 last:border-0">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-sm font-bold text-gray-700 w-16 truncate">{p.name}</span>
-                                                        <input type="tel" inputMode="numeric" placeholder={par} value={scores[p.id]} onChange={(e) => setScores({...scores, [p.id]: e.target.value})} className="w-10 text-center text-lg font-black bg-gray-100 rounded focus:ring-0 outline-none p-1" />
+                                                        <input type="tel" inputMode="numeric" placeholder={par} value={scores[p.id] || ''} onChange={(e) => setScores({...scores, [p.id]: e.target.value})} className="w-10 text-center text-lg font-black bg-gray-100 rounded focus:ring-0 outline-none p-1" />
                                                     </div>
                                                     <div className="flex gap-1">
                                                         {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => {
@@ -856,20 +861,20 @@
                                                     </div>
                                                 </div>
                                                 <div className="opt-grid">
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],rodState:v[p.id].rodState===1?-1:v[p.id].rodState===-1?0:1}}))} className={`opt-btn ${opt.rodState===1?'active':opt.rodState===-1?'active-red':''}`}>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],rodState:v[p.id]?.rodState===1?-1:v[p.id]?.rodState===-1?0:1}}))} className={`opt-btn ${opt.rodState===1?'active':opt.rodState===-1?'active-red':''}`}>
                                                         {opt.rodState === -1 ? '竿失敗' : '竿イチ'}
                                                     </button>
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id].sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id].near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3 && game.settings.vegas}>ニアピン</button>
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id].reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
-                                                    <button className={`opt-btn ${playerOptions[p.id].birdie?'active':''}`} disabled>バーディ</button>
-                                                    <button className={`opt-btn ${playerOptions[p.id].eagle?'active-gold':''}`} disabled>イーグル</button>
-                                                    <button className={`opt-btn ${playerOptions[p.id].four || pastFour > 0 ? 'achieved' : 'placeholder'}`} disabled>4カード{pastFour+(playerOptions[p.id].four?1:0)>1?` x${pastFour+(playerOptions[p.id].four?1:0)}`:''}</button>
-                                                    <button className={`opt-btn ${playerOptions[p.id].straight || pastStraight > 0 ? 'achieved' : 'placeholder'}`} disabled>ストレート{pastStraight+(playerOptions[p.id].straight?1:0)>1?` x${pastStraight+(playerOptions[p.id].straight?1:0)}`:''}</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id]?.sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id]?.near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3 && game.settings?.vegas}>ニアピン</button>
+                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id]?.reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
+                                                    <button className={`opt-btn ${opt.birdie?'active':''}`} disabled>バーディ</button>
+                                                    <button className={`opt-btn ${opt.eagle?'active-gold':''}`} disabled>イーグル</button>
+                                                    <button className={`opt-btn ${opt.four || pastFour > 0 ? 'achieved' : 'placeholder'}`} disabled>4カード{pastFour+(opt.four?1:0)>1?` x${pastFour+(opt.four?1:0)}`:''}</button>
+                                                    <button className={`opt-btn ${opt.straight || pastStraight > 0 ? 'achieved' : 'placeholder'}`} disabled>ストレート{pastStraight+(opt.straight?1:0)>1?` x${pastStraight+(opt.straight?1:0)}`:''}</button>
                                                 </div>
                                                 <div className="mt-2 flex items-center gap-2 justify-end">
                                                     <label className="text-[10px] font-bold text-gray-400">調整:</label>
-                                                    <input type="text" value={playerOptions[p.id].manualAdj} onChange={(e) => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],manualAdj:e.target.value.replace(/[^-0-9]/g,'')}}))} className="w-12 text-center text-xs font-bold bg-gray-50 border rounded py-1 outline-none" />
+                                                    <input type="text" value={opt.manualAdj || ''} onChange={(e) => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],manualAdj:e.target.value.replace(/[^-0-9]/g,'')}}))} className="w-12 text-center text-xs font-bold bg-gray-50 border rounded py-1 outline-none" />
                                                 </div>
                                             </div>
                                         );
@@ -883,7 +888,7 @@
                         {editingIndex !== null ? '修正を保存して完了' : '計算して次のホールへ'}
                     </button>
 
-                    <HistorySection game={game} players={game.players} onJump={startEditHole} />
+                    <HistorySection game={game} players={game.players || []} onJump={startEditHole} />
 
                     <button onClick={() => { setShowFinal(true); scrollToTop(); }} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm tracking-wider">現在までの結果を見る</button>
 
@@ -907,8 +912,8 @@
                             </div>
                         </div>
                     )}
-                    {showFinal && <ResultsModal game={game} players={game.players} onClose={()=>{ setShowFinal(false); scrollToTop(); }} onEnd={onBack} />}
-                    {game.scores.length > 0 && editingIndex === null && <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 直前のホールを削除</button>}
+                    {showFinal && <ResultsModal game={game} players={game.players || []} onClose={()=>{ setShowFinal(false); scrollToTop(); }} onEnd={onBack} />}
+                    {(game.scores || []).length > 0 && editingIndex === null && <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 直前のホールを削除</button>}
                 </div>
             );
         };
@@ -922,10 +927,10 @@
             <div className={`rounded-2xl border-2 p-3 ${color === 'blue' ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
                 <div className={`text-[10px] font-black ${color === 'blue' ? 'text-blue-600' : 'text-red-600'} mb-2`}>{label}</div>
                 <div className="flex gap-2">
-                    {pIds.map(pid => (
+                    {(pIds || []).map(pid => (
                         <div key={pid} className="flex-1 bg-white/80 backdrop-blur rounded-xl p-2 shadow-sm text-center border border-white/50">
-                            <div className="text-[10px] font-bold text-gray-600 truncate mb-1">{players.find(x => x.id === pid)?.name}</div>
-                            <input type="tel" inputMode="numeric" pattern="[0-9]*" placeholder={par} value={scores[pid]} onChange={(e) => setScores({...scores, [pid]: e.target.value})} className="w-full text-center text-2xl font-black text-gray-800 bg-transparent rounded border-0 p-1 focus:ring-0 outline-none" />
+                            <div className="text-[10px] font-bold text-gray-600 truncate mb-1">{players.find(x => x.id === pid)?.name || '未設定'}</div>
+                            <input type="tel" inputMode="numeric" pattern="[0-9]*" placeholder={par} value={scores[pid] || ''} onChange={(e) => setScores({...scores, [pid]: e.target.value})} className="w-full text-center text-2xl font-black text-gray-800 bg-transparent rounded border-0 p-1 focus:ring-0 outline-none" />
                         </div>
                     ))}
                 </div>
@@ -935,7 +940,7 @@
         const HistorySection = ({ game, players, onJump }) => {
             if (!game.scores || game.scores.length === 0) return null;
             const medalIcons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
-            const isThree = game.players.length === 3;
+            const isThree = (game.players || []).length === 3;
             return (
                 <div className="space-y-6 mt-8">
                     <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -946,12 +951,13 @@
                         <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
                             <table className="w-full text-center border-collapse">
                                 <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                <tbody>{game.scores.map((h, i) => (
+                                <tbody>{(game.scores || []).map((h, i) => (
                                     <tr key={i} className="border-b border-gray-50 active:bg-yellow-50 transition cursor-pointer" onClick={() => onJump(i)}>
-                                        <td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}({h.par})</td>
+                                        <td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}({h.par || 4})</td>
                                         {players.map(p => {
-                                            const s = h.scores[p.id] === '' ? '-' : parseInt(h.scores[p.id]);
-                                            const d = s === '-' ? null : s - h.par;
+                                            const sVal = h.scores?.[p.id];
+                                            const s = (sVal === undefined || sVal === '') ? '-' : parseInt(sVal);
+                                            const d = s === '-' ? null : s - (h.par || 4);
                                             return <td key={p.id} className="p-2"><div className={`text-[11px] font-black rounded-md py-1 ${d === null ? 'text-gray-400 bg-gray-50' : d < 0 ? 'text-blue-600 bg-blue-50' : d > 0 ? 'text-red-500 bg-red-50' : 'text-black bg-gray-100'}`}>{s}</div></td>;
                                         })}
                                     </tr>
@@ -959,19 +965,21 @@
                             </table>
                         </div>
                     </div>
-                    {game.settings.vegas && (
+                    {game.settings?.vegas && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
                             <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                    <tbody>{game.scores.map((h, i) => (<tr key={i} className="border-b border-gray-50 active:bg-blue-50 transition cursor-pointer" onClick={() => onJump(i)}><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { 
+                                    <tbody>{(game.scores || []).map((h, i) => (<tr key={i} className="border-b border-gray-50 active:bg-blue-50 transition cursor-pointer" onClick={() => onJump(i)}><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { 
                                         let vP = 0;
-                                        if (isThree) {
-                                            if (h.teams.t1.includes(p.id)) vP = h.vegasDiff;
-                                            else vP = -h.vegasDiff * 2;
-                                        } else {
-                                            vP = h.teams.t1.includes(p.id) ? h.vegasDiff : -h.vegasDiff;
+                                        if (h.teams?.t1) {
+                                            if (isThree) {
+                                                if (h.teams.t1.includes(p.id)) vP = h.vegasDiff || 0;
+                                                else vP = -(h.vegasDiff || 0) * 2;
+                                            } else {
+                                                vP = h.teams.t1.includes(p.id) ? (h.vegasDiff || 0) : -(h.vegasDiff || 0);
+                                            }
                                         }
                                         return <td key={p.id} className="p-2"><div className={`font-black px-1.5 rounded-md py-1 ${vP > 0 ? 'text-blue-600 bg-blue-50' : vP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>{vP > 0 ? '+' : ''}{vP}</div></td>;
                                     })}</tr>))}</tbody>
@@ -979,13 +987,13 @@
                             </div>
                         </div>
                     )}
-                    {game.settings.olympic && (
+                    {game.settings?.olympic && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
                             <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                    <tbody>{game.scores.map((h, i) => (<tr key={i} className="border-b border-gray-50 last:border-0 active:bg-yellow-50 transition cursor-pointer" onClick={() => onJump(i)}><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { const oP = h.olympicPoints[p.id] || 0; return <td key={p.id} className="p-1"><div className={`font-black px-1 rounded-md py-1 flex items-center justify-center gap-0.5 ${oP > 0 ? 'text-blue-600 bg-blue-50' : oP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>{h.medals?.[p.id] && <span>{medalIcons[h.medals[p.id]]}</span>}<span>{oP > 0 ? '+' : ''}{oP}</span></div></td>;})}</tr>))}</tbody>
+                                    <tbody>{(game.scores || []).map((h, i) => (<tr key={i} className="border-b border-gray-50 last:border-0 active:bg-yellow-50 transition cursor-pointer" onClick={() => onJump(i)}><td className="p-2 text-gray-400 font-bold">{h.hole}</td>{players.map(p => { const oP = h.olympicPoints?.[p.id] || 0; return <td key={p.id} className="p-1"><div className={`font-black px-1 rounded-md py-1 flex items-center justify-center gap-0.5 ${oP > 0 ? 'text-blue-600 bg-blue-50' : oP < 0 ? 'text-red-500 bg-red-50' : 'text-gray-700 bg-gray-100'}`}>{h.medals?.[p.id] && <span>{medalIcons[h.medals[p.id]]}</span>}<span>{oP > 0 ? '+' : ''}{oP}</span></div></td>;})}</tr>))}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -996,9 +1004,10 @@
 
         const ResultsModal = ({ game, players, onClose, onEnd }) => {
             const getPlayerScore = (pId) => {
-                const outHoles = game.scores.filter(h => h.hole <= 9);
-                const inHoles = game.scores.filter(h => h.hole > 9);
-                const calc = (holes) => ({ strokes: holes.reduce((s, h) => s + (parseInt(h.scores[pId]) || 0), 0), pars: holes.reduce((s, h) => s + h.par, 0) });
+                const history = game.scores || [];
+                const outHoles = history.filter(h => h.hole <= 9);
+                const inHoles = history.filter(h => h.hole > 9);
+                const calc = (holes) => ({ strokes: holes.reduce((s, h) => s + (parseInt(h.scores?.[pId]) || 0), 0), pars: holes.reduce((s, h) => s + (h.par || 0), 0) });
                 const o = calc(outHoles), i = calc(inHoles);
                 return { out: o.strokes, in: i.strokes, total: o.strokes + i.strokes, diff: (o.strokes + i.strokes) - (o.pars + i.pars) };
             };
@@ -1008,16 +1017,16 @@
                         <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
                         <h3 className="text-gray-800 text-xl font-black mb-4 mt-2 tracking-tighter">結果一覧</h3>
                         <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6 text-left">
-                            {game.settings.vegas && (
+                            {game.settings?.vegas && (
                                 <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
                                     <h4 className="text-[10px] font-bold text-blue-600 mb-3 border-b border-blue-200 pb-1 uppercase">Vegas Results</h4>
-                                    <div className="space-y-2">{players.map(p => { const v = game.totalVegasPoints[p.id]; return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v > 0 ? '+' : ''}{v}</span></div>;})}</div>
+                                    <div className="space-y-2">{players.map(p => { const v = game.totalVegasPoints ? (game.totalVegasPoints[p.id] || 0) : 0; return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v > 0 ? '+' : ''}{v}</span></div>;})}</div>
                                 </div>
                             )}
-                            {game.settings.olympic && (
+                            {game.settings?.olympic && (
                                 <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100">
                                     <h4 className="text-[10px] font-bold text-yellow-600 mb-3 border-b border-yellow-200 pb-1 uppercase">Olympic Relative (授受点)</h4>
-                                    <div className="space-y-2">{players.map(p => { const r = calcOlympicRelative(p.id, game.totalOlympicPoints); return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><div className="flex items-center gap-2"><span className={r >= 0 ? 'text-blue-600' : 'text-red-500'}>{r > 0 ? '+' : ''}{r}</span><span className="text-[10px] text-gray-400 font-medium">({game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]})</span></div></div>;})}</div>
+                                    <div className="space-y-2">{players.map(p => { const r = calcOlympicRelative(p.id, game.totalOlympicPoints || {}); const raw = game.totalOlympicPoints ? (game.totalOlympicPoints[p.id] || 0) : 0; return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><div className="flex items-center gap-2"><span className={r >= 0 ? 'text-blue-600' : 'text-red-500'}>{r > 0 ? '+' : ''}{r}</span><span className="text-[10px] text-gray-400 font-medium">({raw > 0 ? '+' : ''}{raw})</span></div></div>;})}</div>
                                 </div>
                             )}
                             <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
