@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -281,7 +280,7 @@
 
         const RulesModal = ({ onClose }) => (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[300] backdrop-blur-sm animate-fade-in">
-                <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
+                <div className="bg-white rounded-3xl w-full max-sm p-6 shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
                     <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
                     <h3 className="text-gray-800 text-xl font-black mb-4 text-center">ルール一覧</h3>
                     <div className="flex-1 overflow-y-auto no-scrollbar space-y-6 text-xs text-gray-600 leading-relaxed">
@@ -312,7 +311,6 @@
                                 <li><strong>最終算出:</strong> (持点×人数) - 全員合計点。</li>
                             </ul>
                         </section>
-                       
                     </div>
                     <button onClick={onClose} className="w-full mt-6 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">閉じる</button>
                 </div>
@@ -524,10 +522,15 @@
             const MEDAL_PTS = { diamond: 5, gold: 4, silver: 3, bronze: 2, iron: 1 };
             const MEDAL_REVERSE_PTS = { diamond: -5, gold: -1, silver: -2, bronze: -3, iron: -4 };
 
-            const getPlayerMedalStats = (pId, currentMedal) => {
+            // 【実績用集計】「逆オリ」フラグが立っているホールのメダルを除外して集計する
+            const getPlayerMedalStatsForAchievements = (pId, currentMedal, currentIsReverse) => {
                 let counts = { diamond: 0, gold: 0, silver: 0, bronze: 0, iron: 0 };
-                game.scores.forEach(h => { if (h.medals && h.medals[pId]) counts[h.medals[pId]]++; });
-                if (currentMedal) counts[currentMedal]++;
+                game.scores.forEach(h => {
+                    const m = h.medals && h.medals[pId];
+                    const wasReverse = h.reverseStates && h.reverseStates[pId];
+                    if (m && !wasReverse) counts[m]++;
+                });
+                if (currentMedal && !currentIsReverse) counts[currentMedal]++;
                 return counts;
             };
 
@@ -552,13 +555,18 @@
                 }
             }, [game.currentHole, game.settings.vegasLogic]);
 
+            // 実績計算ロジック
             useEffect(() => {
                 setPlayerOptions(prev => {
                     const next = { ...prev };
                     game.players.forEach(p => {
                         const currentMedal = olympicMedals[p.id];
-                        const counts = getPlayerMedalStats(p.id, currentMedal);
-                        const prevCounts = getPlayerMedalStats(p.id, null); 
+                        const currentIsReverse = next[p.id].reverse; // 現在のボタン状態を参照
+                        
+                        // 逆オリメダルを除外した統計を取得
+                        const counts = getPlayerMedalStatsForAchievements(p.id, currentMedal, currentIsReverse);
+                        const prevCounts = getPlayerMedalStatsForAchievements(p.id, null, false); 
+
                         let isFourCard = false;
                         ['diamond', 'gold', 'silver', 'bronze', 'iron'].forEach(type => {
                             if (counts[type] > 0 && counts[type] % 4 === 0 && counts[type] !== prevCounts[type]) isFourCard = true;
@@ -566,16 +574,16 @@
                         const isStraight = calcStraightSets(counts) > calcStraightSets(prevCounts);
                         const sVal = parseInt(scores[p.id]);
                         next[p.id] = { 
-                            ...prev[p.id], 
+                            ...next[p.id], 
                             four: isFourCard, 
                             straight: isStraight,
-                            birdie: !isNaN(sVal) ? sVal === par - 1 : prev[p.id].birdie,
-                            eagle: !isNaN(sVal) ? sVal <= par - 2 : prev[p.id].eagle
+                            birdie: !isNaN(sVal) ? sVal === par - 1 : next[p.id].birdie,
+                            eagle: !isNaN(sVal) ? sVal <= par - 2 : next[p.id].eagle
                         };
                     });
                     return next;
                 });
-            }, [olympicMedals, scores, par]);
+            }, [olympicMedals, scores, par, playerOptions.reverse]); // 逆オリフラグの変化に反応するように
 
             const takenMedals = useMemo(() => {
                 return Object.entries(olympicMedals).reduce((acc, [id, type]) => { acc[type] = id; return acc; }, {});
@@ -645,10 +653,10 @@
                         if (medal) pts += (opt.reverse ? MEDAL_REVERSE_PTS[medal] : MEDAL_PTS[medal]);
                         if (par === 3 && opt.near && !opt.reverse) pts += 3;
                         if (opt.four) {
-                            const c = getPlayerMedalStats(p.id, medal);
+                            const c = getPlayerMedalStatsForAchievements(p.id, medal, opt.reverse);
                             ['diamond','gold','silver','bronze','iron'].forEach(t => { if(c[t]>0 && c[t]%4===0) pts += (MEDAL_PTS[t]*4); });
                         }
-                        if (opt.straight) pts += (getPlayerMedalStats(p.id, medal).diamond > 0 ? 15 : 10);
+                        if (opt.straight) pts += (getPlayerMedalStatsForAchievements(p.id, medal, opt.reverse).diamond > 0 ? 15 : 10);
                         pts += (parseInt(opt.manualAdj) || 0);
                         olympicPoints[p.id] = pts;
                     });
@@ -656,7 +664,9 @@
 
                 const newHistory = [...game.scores, { 
                     hole: game.currentHole, par, vegasDiff, olympicPoints, scores: { ...scores }, 
-                    teams: { t1: team1, t2: Array.from(new Set(team2)) }, medals: { ...olympicMedals }, orderBefore: [...game.currentOrder],
+                    teams: { t1: team1, t2: Array.from(new Set(team2)) }, medals: { ...olympicMedals }, 
+                    reverseStates: game.players.reduce((a,p)=>({...a,[p.id]:!!playerOptions[p.id].reverse}), {}),
+                    orderBefore: [...game.currentOrder],
                     multiplierUsed: currentMultiplier, achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
                 }];
                 
@@ -680,6 +690,7 @@
                     scores: newHistory 
                 });
                 setScores(game.players.reduce((a,p)=>({...a,[p.id]:''}),{})); setOlympicMedals({}); setPar(4);
+                setPlayerOptions(game.players.reduce((a,p)=>({...a,[p.id]:{...initialOpts}}),{}));
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
@@ -788,7 +799,6 @@
                                                             const isDiamond = type === 'diamond';
                                                             const hasDiamondAnywhere = !!takenMedals['diamond'];
                                                             const hasIronAnywhere = !!takenMedals['iron'];
-                                                            
                                                             let isDisabled = takenMedals[type] && takenMedals[type] !== p.id;
                                                             if (isIron && hasDiamondAnywhere) isDisabled = true;
                                                             if (isDiamond && hasIronAnywhere) isDisabled = true;
@@ -838,7 +848,7 @@
 
                     <HistorySection game={game} players={game.players} />
 
-                    <button onClick={() => setShowFinal(true)} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm">現在までの結果を見る</button>
+                    <button onClick={() => { setShowFinal(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm">現在までの結果を見る</button>
 
                     {setupConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
@@ -913,7 +923,7 @@
                     )}
                     {game.settings.olympic && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
-                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Olympic History</h3>
+                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr></thead>
