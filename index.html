@@ -306,8 +306,8 @@
                                 <li><strong>砂いち:</strong> バンカー→ワンパット成功で3点</li>
                                <li><strong>ニアピン:</strong> Par3ワンオン成功で3点、ただし３パットなら無効</li>
                                 <li><strong>逆オリ:</strong> 💎-5点、🥇-4点、🥈-3点、🥉-2点、🔩-1点</li>
-                                <li><strong>4カード:</strong> 同色4枚でメダル点×4倍。</li>
-                                <li><strong>ストレート:</strong> 金銀銅鉄の4種で10点(💎込なら15点)。</li>
+                                <li><strong>4カード:</strong> 同色4枚でメダル点×4倍。逆オリ時のメダルは対象外。</li>
+                                <li><strong>ストレート:</strong> 金銀銅鉄の4種で10点(💎込なら15点)。逆オリ時のメダルは対象外。</li>
                                 <li><strong>最終算出:</strong> (持点×人数) - 全員合計点。</li>
                             </ul>
                         </section>
@@ -522,8 +522,8 @@
             const MEDAL_PTS = { diamond: 5, gold: 4, silver: 3, bronze: 2, iron: 1 };
             const MEDAL_REVERSE_PTS = { diamond: -5, gold: -1, silver: -2, bronze: -3, iron: -4 };
 
-            // 【実績用集計】「逆オリ」フラグが立っているホールのメダルを除外して集計する
-            const getPlayerMedalStatsForAchievements = (pId, currentMedal, currentIsReverse) => {
+            // 実績算出用フィルタリング集計：逆オリ（リバース）フラグを考慮して実績カウントを除外する
+            const getAchievementCounts = (pId, currentMedal, currentIsReverse) => {
                 let counts = { diamond: 0, gold: 0, silver: 0, bronze: 0, iron: 0 };
                 game.scores.forEach(h => {
                     const m = h.medals && h.medals[pId];
@@ -555,24 +555,25 @@
                 }
             }, [game.currentHole, game.settings.vegasLogic]);
 
-            // 実績計算ロジック
+            // 実績計算ロジック：逆オリフラグの変更に連動して4カード・ストレートをリアルタイム算出
             useEffect(() => {
                 setPlayerOptions(prev => {
                     const next = { ...prev };
                     game.players.forEach(p => {
                         const currentMedal = olympicMedals[p.id];
-                        const currentIsReverse = next[p.id].reverse; // 現在のボタン状態を参照
+                        const currentIsReverse = next[p.id].reverse;
                         
-                        // 逆オリメダルを除外した統計を取得
-                        const counts = getPlayerMedalStatsForAchievements(p.id, currentMedal, currentIsReverse);
-                        const prevCounts = getPlayerMedalStatsForAchievements(p.id, null, false); 
+                        const counts = getAchievementCounts(p.id, currentMedal, currentIsReverse);
+                        const prevCounts = getAchievementCounts(p.id, null, false); 
 
                         let isFourCard = false;
                         ['diamond', 'gold', 'silver', 'bronze', 'iron'].forEach(type => {
                             if (counts[type] > 0 && counts[type] % 4 === 0 && counts[type] !== prevCounts[type]) isFourCard = true;
                         });
+                        
                         const isStraight = calcStraightSets(counts) > calcStraightSets(prevCounts);
                         const sVal = parseInt(scores[p.id]);
+
                         next[p.id] = { 
                             ...next[p.id], 
                             four: isFourCard, 
@@ -583,7 +584,8 @@
                     });
                     return next;
                 });
-            }, [olympicMedals, scores, par, playerOptions.reverse]); // 逆オリフラグの変化に反応するように
+                // 逆オリフラグの変化も検知対象に含める
+            }, [olympicMedals, scores, par, JSON.stringify(Object.values(playerOptions).map(o => o.reverse))]);
 
             const takenMedals = useMemo(() => {
                 return Object.entries(olympicMedals).reduce((acc, [id, type]) => { acc[type] = id; return acc; }, {});
@@ -591,12 +593,9 @@
 
             const toggleManualTeam = (pid) => {
                 setManualTeamA(prev => {
-                    if (prev.includes(pid)) {
-                        return prev.filter(id => id !== pid);
-                    } else {
-                        if (prev.length < 2) return [...prev, pid];
-                        return prev;
-                    }
+                    if (prev.includes(pid)) return prev.filter(id => id !== pid);
+                    if (prev.length < 2) return [...prev, pid];
+                    return prev;
                 });
             };
 
@@ -605,24 +604,12 @@
                 
                 let team1, team2;
                 if (game.settings.vegasLogic === 'original') {
-                    if (isThree) {
-                        if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください（残りの1名が2倍となります）'); return; }
-                        team1 = manualTeamA;
-                        const singletonId = game.players.find(p => !manualTeamA.includes(p.id)).id;
-                        team2 = [singletonId, singletonId];
-                    } else {
-                        if (manualTeamA.length !== 2) { alert('先行チームを2名選択してください'); return; }
-                        team1 = manualTeamA;
-                        team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
-                    }
+                    team1 = manualTeamA;
+                    team2 = game.players.filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
+                    if (isThree) team2 = [team2[0], team2[0]];
                 } else {
-                    if (isThree) {
-                        team1 = [game.currentOrder[0], game.currentOrder[2]];
-                        team2 = [game.currentOrder[1], game.currentOrder[1]];
-                    } else {
-                        team1 = [game.currentOrder[0], game.currentOrder[3]];
-                        team2 = [game.currentOrder[1], game.currentOrder[2]];
-                    }
+                    team1 = isThree ? [game.currentOrder[0], game.currentOrder[2]] : [game.currentOrder[0], game.currentOrder[3]];
+                    team2 = isThree ? [game.currentOrder[1], game.currentOrder[1]] : [game.currentOrder[1], game.currentOrder[2]];
                 }
 
                 const s = (pid) => parseInt(scores[pid]);
@@ -640,23 +627,23 @@
                     let mult = 1;
                     if (res1.rank > 0) { if (res1.rank === 2) mult *= 2; p2 = Math.max(...t2S) * 10 + Math.min(...t2S); }
                     if (res2.rank > 0) { if (res2.rank === 2) mult *= 2; p1 = Math.min(...t1S) * 10 + Math.min(...t1S); }
-                    const raw = (p2 - p1) * mult;
-                    vegasDiff = (raw >= 0 ? Math.ceil(Math.abs(raw) / 5) * 5 : -Math.ceil(Math.abs(raw) / 5) * 5) * currentMultiplier;
+                    vegasDiff = (Math.ceil(Math.abs(p2 - p1) * mult / 5) * 5) * (p2 - p1 < 0 ? -1 : 1) * currentMultiplier;
                 }
 
                 if (game.settings.olympic) {
                     game.players.forEach(p => {
                         const opt = playerOptions[p.id], medal = olympicMedals[p.id];
                         let pts = 0;
-                        if (opt.eagle) pts += 15; else if (opt.birdie) pts += 3;
+                        if (s(p.id) === par - 1) pts += 3; else if (s(p.id) <= par - 2) pts += 15;
                         if (opt.sand) pts += 3; if (opt.rodState === 1) pts += 3; else if (opt.rodState === -1) pts -= 3;
                         if (medal) pts += (opt.reverse ? MEDAL_REVERSE_PTS[medal] : MEDAL_PTS[medal]);
                         if (par === 3 && opt.near && !opt.reverse) pts += 3;
+                        
                         if (opt.four) {
-                            const c = getPlayerMedalStatsForAchievements(p.id, medal, opt.reverse);
+                            const c = getAchievementCounts(p.id, medal, opt.reverse);
                             ['diamond','gold','silver','bronze','iron'].forEach(t => { if(c[t]>0 && c[t]%4===0) pts += (MEDAL_PTS[t]*4); });
                         }
-                        if (opt.straight) pts += (getPlayerMedalStatsForAchievements(p.id, medal, opt.reverse).diamond > 0 ? 15 : 10);
+                        if (opt.straight) pts += (getAchievementCounts(p.id, medal, opt.reverse).diamond > 0 ? 15 : 10);
                         pts += (parseInt(opt.manualAdj) || 0);
                         olympicPoints[p.id] = pts;
                     });
@@ -667,7 +654,8 @@
                     teams: { t1: team1, t2: Array.from(new Set(team2)) }, medals: { ...olympicMedals }, 
                     reverseStates: game.players.reduce((a,p)=>({...a,[p.id]:!!playerOptions[p.id].reverse}), {}),
                     orderBefore: [...game.currentOrder],
-                    multiplierUsed: currentMultiplier, achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
+                    multiplierUsed: currentMultiplier,
+                    achievements: game.players.reduce((a,p)=>({...a,[p.id]:{four:playerOptions[p.id].four,straight:playerOptions[p.id].straight}}),{})
                 }];
                 
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
@@ -682,8 +670,7 @@
                 });
 
                 onUpdate({ 
-                    ...game, 
-                    currentHole: game.currentHole === 18 ? 1 : game.currentHole + 1, 
+                    ...game, currentHole: game.currentHole === 18 ? 1 : game.currentHole + 1, 
                     currentOrder: [...game.currentOrder].sort((a,b) => s(a)-s(b) || game.currentOrder.indexOf(a)-game.currentOrder.indexOf(b)), 
                     totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, 
                     vegasMultiplier: (game.settings.vegas && vegasDiff === 0) ? currentMultiplier + 1 : 1,
@@ -697,7 +684,6 @@
             const handleUndoLastHole = () => {
                 const last = [...game.scores].pop(); 
                 const newVegasTotal = { ...game.totalVegasPoints }, newOlympicTotal = { ...game.totalOlympicPoints };
-                
                 game.players.forEach(p => {
                     if (isThree) {
                         if (last.teams.t1.includes(p.id)) newVegasTotal[p.id] -= last.vegasDiff;
@@ -713,9 +699,7 @@
                     vegasMultiplier: last.multiplierUsed, scores: game.scores.slice(0,-1)
                 });
                 setUndoConfirm(false);
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 50);
+                setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
             };
 
             let team1, team2;
@@ -731,18 +715,16 @@
                 <div className="pb-8">
                     {game.scores.length === 0 && (
                         <div className="mb-4">
-                            <button onClick={() => setSetupConfirm(true)} className="w-full py-2.5 bg-gray-200 text-gray-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:bg-gray-300 transition btn-press"><i className="fa-solid fa-gear"></i> 設定をやり直す</button>
+                            <button onClick={() => { setSetupConfirm(true); window.scrollTo({top:0}); }} className="w-full py-2.5 bg-gray-200 text-gray-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:bg-gray-300 transition btn-press"><i className="fa-solid fa-gear"></i> 設定をやり直す</button>
                         </div>
                     )}
 
-                    <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 text-center border border-gray-100">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-800">Hole {game.currentHole}</h2>
-                            <div className="flex bg-gray-100 rounded-lg p-1">
-                                {[3, 4, 5].map(p => (
-                                    <button key={p} onClick={() => setPar(p)} className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${par === p ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>Par {p}</button>
-                                ))}
-                            </div>
+                    <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 text-center border border-gray-100 flex items-center justify-between">
+                        <h2 className="text-xl font-bold text-gray-800">Hole {game.currentHole}</h2>
+                        <div className="flex bg-gray-100 rounded-lg p-1">
+                            {[3, 4, 5].map(p => (
+                                <button key={p} onClick={() => setPar(p)} className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${par === p ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>Par {p}</button>
+                            ))}
                         </div>
                     </div>
 
@@ -753,13 +735,8 @@
                                     <label className="block text-[10px] font-bold text-blue-600 mb-2 uppercase text-center">チーム選択 (2名選択で先行チーム)</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {game.players.map(p => (
-                                            <button 
-                                                key={p.id}
-                                                onClick={() => toggleManualTeam(p.id)}
-                                                className={`py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border-2 ${manualTeamA.includes(p.id) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-400'}`}
-                                            >
-                                                {manualTeamA.includes(p.id) ? <i className="fa-solid fa-check"></i> : null}
-                                                {p.name}
+                                            <button key={p.id} onClick={() => toggleManualTeam(p.id)} className={`py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border-2 ${manualTeamA.includes(p.id) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-100 text-gray-400'}`}>
+                                                {manualTeamA.includes(p.id) ? <i className="fa-solid fa-check"></i> : null}{p.name}
                                             </button>
                                         ))}
                                     </div>
@@ -773,11 +750,9 @@
 
                     {game.settings.olympic && (
                         <div className="mt-6">
-                            {game.settings.vegas && (
-                                <button onClick={() => setShowOlympic(!showOlympic)} className="w-full py-3 bg-gray-200 rounded-xl font-bold flex items-center justify-center gap-2">
-                                    <i className="fa-solid fa-medal"></i> オリンピック入力 {showOlympic ? '▲' : '▼'}
-                                </button>
-                            )}
+                            <button onClick={() => setShowOlympic(!showOlympic)} className="w-full py-3 bg-gray-200 rounded-xl font-bold flex items-center justify-center gap-2">
+                                <i className="fa-solid fa-medal"></i> オリンピック入力 {showOlympic ? '▲' : '▼'}
+                            </button>
                             {(showOlympic || !game.settings.vegas) && (
                                 <div className="mt-2 bg-white rounded-xl shadow-sm p-3 border border-yellow-200 space-y-6 animate-fade-in">
                                     {game.players.map(p => {
@@ -789,31 +764,16 @@
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-sm font-bold text-gray-700 w-16 truncate">{p.name}</span>
-                                                        {!game.settings.vegas && (
-                                                            <input type="tel" inputMode="numeric" placeholder={par} value={scores[p.id]} onChange={(e) => setScores({...scores, [p.id]: e.target.value})} className="w-10 text-center text-lg font-black bg-gray-100 rounded focus:ring-0 outline-none p-1" />
-                                                        )}
+                                                        <input type="tel" inputMode="numeric" placeholder={par} value={scores[p.id]} onChange={(e) => setScores({...scores, [p.id]: e.target.value})} className="w-10 text-center text-lg font-black bg-gray-100 rounded focus:ring-0 outline-none p-1" />
                                                     </div>
                                                     <div className="flex gap-1">
-                                                        {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => {
-                                                            const isIron = type === 'iron';
-                                                            const isDiamond = type === 'diamond';
-                                                            const hasDiamondAnywhere = !!takenMedals['diamond'];
-                                                            const hasIronAnywhere = !!takenMedals['iron'];
-                                                            let isDisabled = takenMedals[type] && takenMedals[type] !== p.id;
-                                                            if (isIron && hasDiamondAnywhere) isDisabled = true;
-                                                            if (isDiamond && hasIronAnywhere) isDisabled = true;
-                                                            if (isIron && isThree) isDisabled = true;
-
-                                                            return (
-                                                                <MedalButton 
-                                                                    key={type} 
-                                                                    type={type} 
-                                                                    current={olympicMedals[p.id]} 
-                                                                    disabled={isDisabled} 
-                                                                    onClick={() => setOlympicMedals(prev => prev[p.id] === type ? (()=>{const n={...prev}; delete n[p.id]; return n;})() : {...prev, [p.id]: type})} 
-                                                                />
-                                                            );
-                                                        })}
+                                                        {['diamond', 'gold', 'silver', 'bronze', 'iron'].map(type => (
+                                                            <MedalButton 
+                                                                key={type} type={type} current={olympicMedals[p.id]} 
+                                                                disabled={takenMedals[type] && takenMedals[type] !== p.id} 
+                                                                onClick={() => setOlympicMedals(prev => prev[p.id] === type ? (()=>{const n={...prev}; delete n[p.id]; return n;})() : {...prev, [p.id]: type})} 
+                                                            />
+                                                        ))}
                                                     </div>
                                                 </div>
                                                 <div className="opt-grid">
@@ -842,13 +802,9 @@
 
                     <button onClick={handleCalculateAndSave} className="w-full mt-6 bg-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg btn-press">計算して次のホールへ</button>
 
-                    {game.scores.length > 0 && (
-                        <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 前のホールを修正する</button>
-                    )}
-
                     <HistorySection game={game} players={game.players} />
 
-                    <button onClick={() => { setShowFinal(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm">現在までの結果を見る</button>
+                    <button onClick={() => { setShowFinal(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm tracking-wider">現在までの結果を見る</button>
 
                     {setupConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
@@ -856,7 +812,7 @@
                                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-gear text-blue-500 text-3xl"></i></div>
                                 <h3 className="text-gray-800 text-lg font-black mb-2">設定のやり直し</h3>
                                 <p className="text-gray-500 text-sm mb-6 leading-relaxed">設定画面に戻りますか？<br/>現在のゲームデータは破棄されます。</p>
-                                <div className="flex gap-3"><button onClick={() => setSetupConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button><button onClick={onRestartSetup} className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg btn-press">やり直す</button></div>
+                                <div className="flex gap-3"><button onClick={() => setSetupConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button><button onClick={() => { onRestartSetup(); window.scrollTo({top:0}); }} className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg btn-press">やり直す</button></div>
                             </div>
                         </div>
                     )}
@@ -870,7 +826,8 @@
                             </div>
                         </div>
                     )}
-                    {showFinal && <ResultsModal game={game} players={game.players} onClose={()=>setShowFinal(false)} onEnd={onBack} />}
+                    {showFinal && <ResultsModal game={game} players={game.players} onClose={()=>{ setShowFinal(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onEnd={onBack} />}
+                    {game.scores.length > 0 && <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 前のホールを修正する</button>}
                 </div>
             );
         };
@@ -898,9 +855,26 @@
             if (!game.scores || game.scores.length === 0) return null;
             const medalIcons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
             const isThree = game.players.length === 3;
-
             return (
                 <div className="space-y-6 mt-8">
+                    <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                        <h3 className="text-[10px] font-bold text-green-600 mb-2 uppercase border-l-4 border-green-500 pl-2">Score History</h3>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
+                            <table className="w-full text-center border-collapse">
+                                <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
+                                <tbody>{game.scores.map((h, i) => (
+                                    <tr key={i} className="border-b border-gray-50">
+                                        <td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}({h.par})</td>
+                                        {players.map(p => {
+                                            const s = h.scores[p.id] === '' ? '-' : parseInt(h.scores[p.id]);
+                                            const d = s === '-' ? null : s - h.par;
+                                            return <td key={p.id} className="p-2"><div className={`text-[11px] font-black rounded-md py-1 ${d === null ? 'text-gray-400 bg-gray-50' : d < 0 ? 'text-blue-600 bg-blue-50' : d > 0 ? 'text-red-500 bg-red-50' : 'text-black bg-gray-100'}`}>{s}</div></td>;
+                                        })}
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        </div>
+                    </div>
                     {game.settings.vegas && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
                             <h3 className="text-[10px] font-bold text-blue-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Vegas History</h3>
@@ -923,7 +897,7 @@
                     )}
                     {game.settings.olympic && (
                         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
-                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-yellow-500 pl-2">Olympic History</h3>
+                            <h3 className="text-[10px] font-bold text-yellow-600 mb-2 uppercase border-l-4 border-blue-500 pl-2">Olympic History</h3>
                             <div className="max-h-40 overflow-y-auto no-scrollbar">
                                 <table className="w-full text-center border-collapse text-[10px]">
                                     <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H</th>{players.map(p => <th key={p.id} className="p-2 font-bold bg-gray-50/95">{p.name}</th>)}</tr></thead>
@@ -932,30 +906,11 @@
                             </div>
                         </div>
                     )}
-                    <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 animate-fade-in">
-                        <h3 className="text-[10px] font-bold text-green-600 mb-2 uppercase border-l-4 border-green-500 pl-2">Score History</h3>
-                        <div className="max-h-60 overflow-y-auto no-scrollbar border border-gray-50 rounded-lg">
-                            <table className="w-full text-center border-collapse">
-                                <thead className="sticky top-0 bg-white z-10"><tr className="text-gray-400 text-[10px]"><th className="p-2 bg-gray-50/95">H(P)</th>{players.map(p => <th key={p.id} className="p-2 font-bold truncate max-w-[60px] bg-gray-50/95">{p.name}</th>)}</tr></thead>
-                                <tbody>{game.scores.map((h, i) => (
-                                    <tr key={i} className="border-b border-gray-50 last:border-0">
-                                        <td className="p-2 font-bold text-gray-400 text-[10px]">{h.hole}({h.par})</td>
-                                        {players.map(p => {
-                                            const s = h.scores[p.id] === '' ? '-' : parseInt(h.scores[p.id]);
-                                            const d = s === '-' ? null : s - h.par;
-                                            return <td key={p.id} className="p-2"><div className={`text-[11px] font-black rounded-md py-1 ${d === null ? 'text-gray-400 bg-gray-50' : d < 0 ? 'text-blue-600 bg-blue-50' : d > 0 ? 'text-red-500 bg-red-50' : 'text-black bg-gray-100'}`}>{s}</div></td>;
-                                        })}
-                                    </tr>
-                                ))}</tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
             );
         };
 
         const ResultsModal = ({ game, players, onClose, onEnd }) => {
-            const [showEndConfirm, setShowEndConfirm] = useState(false);
             const getPlayerScore = (pId) => {
                 const outHoles = game.scores.filter(h => h.hole <= 9);
                 const inHoles = game.scores.filter(h => h.hole > 9);
@@ -968,25 +923,26 @@
                     <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
                         <h3 className="text-gray-800 text-xl font-black mb-4 mt-2 tracking-tighter">結果一覧</h3>
-                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6">
+                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 mb-6 text-left">
                             {game.settings.vegas && (
-                                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100"><h4 className="text-[10px] font-bold text-blue-600 mb-3 uppercase border-b border-blue-200 pb-1 text-left">Vegas Results</h4><div className="space-y-2">{players.map(p => { const v = game.totalVegasPoints[p.id]; return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v > 0 ? '+' : ''}{v}</span></div>;})}</div></div>
+                                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
+                                    <h4 className="text-[10px] font-bold text-blue-600 mb-3 border-b border-blue-200 pb-1 uppercase">Vegas Results</h4>
+                                    <div className="space-y-2">{players.map(p => { const v = game.totalVegasPoints[p.id]; return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><span className={v >= 0 ? 'text-blue-600' : 'text-red-500'}>{v > 0 ? '+' : ''}{v}</span></div>;})}</div>
+                                </div>
                             )}
                             {game.settings.olympic && (
-                                <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100"><h4 className="text-[10px] font-bold text-yellow-600 mb-3 uppercase border-b border-yellow-200 pb-1 text-left">Olympic Results (授受点)</h4><div className="space-y-2">{players.map(p => { const r = calcOlympicRelative(p.id, game.totalOlympicPoints); return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><div className="flex items-center gap-2"><span className={r >= 0 ? 'text-blue-600' : 'text-red-500'}>{r > 0 ? '+' : ''}{r}</span><span className="text-[10px] text-gray-400 font-medium">({game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]})</span></div></div>;})}</div></div>
+                                <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-100">
+                                    <h4 className="text-[10px] font-bold text-yellow-600 mb-3 border-b border-yellow-200 pb-1 uppercase">Olympic Relative (授受点)</h4>
+                                    <div className="space-y-2">{players.map(p => { const r = calcOlympicRelative(p.id, game.totalOlympicPoints); return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600">{p.name}</span><div className="flex items-center gap-2"><span className={r >= 0 ? 'text-blue-600' : 'text-red-500'}>{r > 0 ? '+' : ''}{r}</span><span className="text-[10px] text-gray-400 font-medium">({game.totalOlympicPoints[p.id] > 0 ? '+' : ''}{game.totalOlympicPoints[p.id]})</span></div></div>;})}</div>
+                                </div>
                             )}
-                            <div className="p-4 rounded-2xl bg-green-50 border border-green-100"><h4 className="text-[10px] font-bold text-green-600 mb-3 uppercase border-b border-green-200 pb-1 text-left">Stroke Score</h4><div className="space-y-2">{players.map(p => { const res = getPlayerScore(p.id); 
-                                const diffColorClass = res.diff === 0 ? 'text-black' : (res.diff > 0 ? 'text-red-500' : 'text-blue-600');
-                                return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600 w-16 truncate text-left">{p.name}</span><div className="flex-1 flex justify-end items-center gap-3"><span className="text-[10px] text-gray-700">O:{res.out}</span><span className="text-[10px] text-gray-700">I:{res.in}</span><span className="text-sm text-gray-800 font-black">T:{res.total}</span><span className={`min-w-[28px] text-right text-sm font-black ${diffColorClass}`}>{res.diff === 0 ? 'E' : (res.diff > 0 ? '+' + res.diff : res.diff)}</span></div></div>;
-                            })}</div></div>
+                            <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
+                                <h4 className="text-[10px] font-bold text-green-600 mb-3 border-b border-green-200 pb-1 uppercase">Total Strokes</h4>
+                                <div className="space-y-2">{players.map(p => { const res = getPlayerScore(p.id); return <div key={p.id} className="flex justify-between items-center text-sm font-bold"><span className="text-gray-600 w-16 truncate text-left">{p.name}</span><div className="flex-1 flex justify-end items-center gap-3 text-right"><span className="text-[10px] text-gray-700">O:{res.out}</span><span className="text-[10px] text-gray-700">I:{res.in}</span><span className="text-sm font-black">T:{res.total}</span><span className={`min-w-[28px] text-right text-sm font-black ${res.diff <= 0 ? 'text-blue-600' : 'text-red-500'}`}>{res.diff === 0 ? 'E' : (res.diff > 0 ? '+' + res.diff : res.diff)}</span></div></div>;})}</div>
+                            </div>
                         </div>
-                        <div className="flex gap-3"><button onClick={() => setShowEndConfirm(true)} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了する</button><button onClick={onClose} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">閉じる</button></div>
+                        <div className="flex gap-3"><button onClick={() => { onEnd(); window.scrollTo({top:0}); }} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold shadow-lg btn-press">終了</button><button onClick={() => { onClose(); window.scrollTo({top:0}); }} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold shadow-md btn-press">戻る</button></div>
                     </div>
-                    {showEndConfirm && (
-                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
-                            <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl"><h3 className="text-gray-800 text-lg font-black mb-2">終了確認</h3><p className="text-gray-500 text-sm mb-6 leading-relaxed">終了して戻りますか？</p><div className="flex gap-3"><button onClick={() => setShowEndConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button><button onClick={onEnd} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg btn-press">終了する</button></div></div>
-                        </div>
-                    )}
                 </div>
             );
         };
