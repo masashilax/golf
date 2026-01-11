@@ -854,6 +854,7 @@
                                                                 <MedalButton 
                                                                     key={type} type={type} current={olympicMedals[p.id]} 
                                                                     disabled={isDisabled} 
+                                                                    isReverse={opt.reverse}
                                                                     onClick={() => setOlympicMedals(prev => prev[p.id] === type ? (()=>{const n={...prev}; delete n[p.id]; return n;})() : {...prev, [p.id]: type})} 
                                                                 />
                                                             );
@@ -918,9 +919,10 @@
             );
         };
 
-        const MedalButton = ({ type, current, onClick, disabled }) => {
+        const MedalButton = ({ type, current, onClick, disabled, isReverse }) => {
             const icons = { diamond: '💎', gold: '🥇', silver: '🥈', bronze: '🥉', iron: '🔩' };
-            return <button onClick={onClick} disabled={disabled} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border transition medal-btn ${disabled ? 'disabled' : ''} ${current === type ? 'active bg-yellow-50 border-yellow-400' : 'bg-white border-gray-200'}`}>{icons[type]}</button>;
+            const activeStyle = isReverse ? 'active bg-red-50 border-red-500' : 'active bg-yellow-50 border-yellow-400';
+            return <button onClick={onClick} disabled={disabled} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border transition medal-btn ${disabled ? 'disabled' : ''} ${current === type ? activeStyle : 'bg-white border-gray-200'}`}>{icons[type]}</button>;
         };
 
         const TeamCard = ({ color, label, pIds, players, scores, setScores, par }) => (
