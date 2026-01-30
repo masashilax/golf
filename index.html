@@ -153,12 +153,11 @@
                 date: getToday(),
                 startSide: 'OUT',
                 playerData: [
-                    { name: '', order: 1 },
+                    { name: '松本洋介', order: 1 },
                     { name: '', order: 2 },
                     { name: '', order: 3 },
                     { name: '', order: 4 }
                 ],
-                // 設定初期値に新しいオプションを追加 (fourCard, straight, nearPinCarry)
                 settings: { vegas: true, olympic: true, vegasLogic: 'basic', fourCard: true, straight: true, nearPinCarry: true }
             });
 
@@ -167,11 +166,25 @@
                 window.scrollTo({ top: 0, behavior: 'instant' });
             };
 
+            // データ読み込み時に、古いデータを新しい形式に自動補正（マイグレーション）する
             useEffect(() => {
                 const saved = localStorage.getItem('golf_vegas_data');
                 if (saved) {
                     try {
-                        setGames(JSON.parse(saved));
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) {
+                            const migrated = parsed.map(g => ({
+                                ...g,
+                                nearPinCarryCount: g.nearPinCarryCount ?? 0,
+                                settings: {
+                                    vegas: true, olympic: true, vegasLogic: 'basic', fourCard: true, straight: true, nearPinCarry: true, // 新しいデフォルト値
+                                    ...(g.settings || {}) // 既存の設定があれば上書き
+                                }
+                            }));
+                            setGames(migrated);
+                        } else {
+                            setGames([]);
+                        }
                     } catch(e) {
                         setGames([]);
                     }
@@ -193,10 +206,9 @@
                     currentOrder: finalSetup.currentOrder || [],
                     totalVegasPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
                     totalOlympicPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
-                    // 設定をそのまま渡す
                     settings: finalSetup.settings || { vegas: true, olympic: true, vegasLogic: 'basic', fourCard: true, straight: true, nearPinCarry: true },
                     vegasMultiplier: 1,
-                    nearPinCarryCount: 0, // ニアピン持ち越しカウント初期化
+                    nearPinCarryCount: 0,
                     isFinished: false
                 };
                 setGames(prev => [newGame, ...prev]);
@@ -426,7 +438,7 @@
             const resetPlayers = () => setSetupInfo({
                 ...setupInfo,
                 playerData: [
-                    { name: { name: '', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
+                    { name: '松本洋介', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
                 ]
             });
 
@@ -490,7 +502,7 @@
                                         </label>
                                         <label className="flex items-center gap-2 bg-white p-2 rounded border border-gray-100 col-span-2">
                                             <input type="checkbox" checked={setupInfo.settings.nearPinCarry} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, nearPinCarry: !setupInfo.settings.nearPinCarry}})} className="rounded text-green-600 focus:ring-green-500" />
-                                            <span className="text-[10px] font-bold text-gray-500">ニアピンキャリーオーバー(＋3点ずつ)</span>
+                                            <span className="text-[10px] font-bold text-gray-500">ニアピンキャリーオーバー(Par3)</span>
                                         </label>
                                     </div>
                                 )}
