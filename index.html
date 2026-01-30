@@ -59,6 +59,7 @@
             white-space: nowrap;
             text-align: center;
             font-weight: 500;
+            position: relative;
         }
         
         .opt-btn.active { background: #eff6ff; border-color: #3b82f6; color: #2563eb; font-weight: bold; }
@@ -152,12 +153,13 @@
                 date: getToday(),
                 startSide: 'OUT',
                 playerData: [
-                    { name: '松本洋介', order: 1 },
+                    { name: '', order: 1 },
                     { name: '', order: 2 },
                     { name: '', order: 3 },
                     { name: '', order: 4 }
                 ],
-                settings: { vegas: true, olympic: true, vegasLogic: 'basic' }
+                // 設定初期値に新しいオプションを追加 (fourCard, straight, nearPinCarry)
+                settings: { vegas: true, olympic: true, vegasLogic: 'basic', fourCard: true, straight: true, nearPinCarry: true }
             });
 
             const navigateTo = (nextView) => {
@@ -191,8 +193,10 @@
                     currentOrder: finalSetup.currentOrder || [],
                     totalVegasPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
                     totalOlympicPoints: (finalSetup.players || []).reduce((a,p)=>({...a,[p.id]:0}),{}),
-                    settings: finalSetup.settings || { vegas: true, olympic: true, vegasLogic: 'basic' },
+                    // 設定をそのまま渡す
+                    settings: finalSetup.settings || { vegas: true, olympic: true, vegasLogic: 'basic', fourCard: true, straight: true, nearPinCarry: true },
                     vegasMultiplier: 1,
+                    nearPinCarryCount: 0, // ニアピン持ち越しカウント初期化
                     isFinished: false
                 };
                 setGames(prev => [newGame, ...prev]);
@@ -422,7 +426,7 @@
             const resetPlayers = () => setSetupInfo({
                 ...setupInfo,
                 playerData: [
-                    { name: '松本洋介', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
+                    { name: { name: '', order: 1 }, { name: '', order: 2 }, { name: '', order: 3 }, { name: '', order: 4 }
                 ]
             });
 
@@ -457,20 +461,39 @@
                                 </div>
                                 {setupInfo.settings.vegas && (
                                     <div className="pl-4 py-2 border-l-2 border-blue-200 animate-fade-in">
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">チーム分けルール</label>
-                                        <div className="flex bg-white rounded-lg p-1 border">
-                                            <button 
-                                                onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'basic'}})}
-                                                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'basic' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
-                                            >基本(14vs23)</button>
-                                            <button 
-                                                onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'original'}})}
-                                                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'original' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
-                                            >オリジナル(手動)</button>
-                                        </div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">チーム分けルール</label>
+                                            <div className="flex bg-white rounded-lg p-1 border">
+                                                <button 
+                                                    onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'basic'}})}
+                                                    className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'basic' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
+                                                >基本(14vs23)</button>
+                                                <button 
+                                                    onClick={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, vegasLogic: 'original'}})}
+                                                    className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${setupInfo.settings.vegasLogic === 'original' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'}`}
+                                                >オリジナル(手動)</button>
+                                            </div>
                                     </div>
                                 )}
-                                <div className="flex justify-between items-center"><span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span><label className="switch"><input type="checkbox" checked={setupInfo.settings.olympic} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, olympic: !setupInfo.settings.olympic}})} /><span className="slider"></span></label></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-700">オリンピック (パター戦)</span>
+                                    <label className="switch"><input type="checkbox" checked={setupInfo.settings.olympic} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, olympic: !setupInfo.settings.olympic}})} /><span className="slider"></span></label>
+                                </div>
+                                {setupInfo.settings.olympic && (
+                                    <div className="pl-4 py-2 border-l-2 border-yellow-200 animate-fade-in grid grid-cols-2 gap-2">
+                                        <label className="flex items-center gap-2 bg-white p-2 rounded border border-gray-100">
+                                            <input type="checkbox" checked={setupInfo.settings.fourCard} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, fourCard: !setupInfo.settings.fourCard}})} className="rounded text-green-600 focus:ring-green-500" />
+                                            <span className="text-[10px] font-bold text-gray-500">4カードあり</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 bg-white p-2 rounded border border-gray-100">
+                                            <input type="checkbox" checked={setupInfo.settings.straight} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, straight: !setupInfo.settings.straight}})} className="rounded text-green-600 focus:ring-green-500" />
+                                            <span className="text-[10px] font-bold text-gray-500">ストレートあり</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 bg-white p-2 rounded border border-gray-100 col-span-2">
+                                            <input type="checkbox" checked={setupInfo.settings.nearPinCarry} onChange={() => setSetupInfo({...setupInfo, settings: {...setupInfo.settings, nearPinCarry: !setupInfo.settings.nearPinCarry}})} className="rounded text-green-600 focus:ring-green-500" />
+                                            <span className="text-[10px] font-bold text-gray-500">ニアピンキャリーオーバー(＋3点ずつ)</span>
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -606,11 +629,11 @@
                         team1 = manualTeamA;
                         team2 = (game.players || []).filter(p => !manualTeamA.includes(p.id)).map(p => p.id);
                         if (isThree) team2 = [team2[0], team2[0]];
-                     } else {
+                      } else {
                         const order = targetHole.orderBefore || [];
                         team1 = isThree ? [order[0], order[2]] : [order[0], order[3]];
                         team2 = isThree ? [order[1], order[1]] : [order[1], order[2]];
-                     }
+                      }
                 } else {
                     if (game.settings?.vegasLogic === 'original') {
                         if (isThree) {
@@ -647,6 +670,14 @@
                     vegasDiff = (Math.ceil(Math.abs(p2 - p1) * mult / 5) * 5) * (p2 - p1 < 0 ? -1 : 1) * currentMultiplier;
                 }
 
+                // ニアピンキャリーオーバー判定用
+                const currentNearPinCarry = game.nearPinCarryCount || 0;
+                const isPar3 = par === 3;
+                let someoneGotNear = false;
+                if (game.settings?.olympic && isPar3) {
+                    someoneGotNear = (game.players || []).some(p => playerOptions[p.id]?.near && !playerOptions[p.id]?.reverse);
+                }
+
                 (game.players || []).forEach(p => {
                     const opt = playerOptions[p.id] || initialOpts;
                     const medal = olympicMedals[p.id];
@@ -654,13 +685,24 @@
                     if (s(p.id) === par - 1) pts += 3; else if (s(p.id) <= par - 2) pts += 15;
                     if (opt.sand) pts += 3; if (opt.rodState === 1) pts += 3; else if (opt.rodState === -1) pts -= 3;
                     if (medal) pts += (opt.reverse ? MEDAL_REVERSE_PTS[medal] : MEDAL_PTS[medal]);
-                    if (par === 3 && opt.near && !opt.reverse) pts += 3;
                     
-                    if (opt.four) {
+                    // ニアピン計算（キャリーオーバー対応）
+                    if (isPar3 && opt.near && !opt.reverse) {
+                        const multiplier = game.settings?.nearPinCarry ? (currentNearPinCarry + 1) : 1;
+                        pts += (3 * multiplier);
+                    }
+                    
+                    // 4カード（オプション判定）
+                    if (game.settings?.fourCard && opt.four) {
                         const c = getAchievementCounts(p.id, medal, opt.reverse);
                         ['diamond','gold','silver','bronze','iron'].forEach(t => { if(c[t]>0 && c[t]%4===0) pts += (MEDAL_PTS[t]*4); });
                     }
-                    if (opt.straight) pts += (getAchievementCounts(p.id, medal, opt.reverse).diamond > 0 ? 15 : 10);
+
+                    // ストレート（オプション判定）
+                    if (game.settings?.straight && opt.straight) {
+                        pts += (getAchievementCounts(p.id, medal, opt.reverse).diamond > 0 ? 15 : 10);
+                    }
+
                     pts += (parseInt(opt.manualAdj) || 0);
                     olympicPoints[p.id] = pts;
                 });
@@ -712,12 +754,23 @@
                     nextMult = 1;
                 }
 
+                // ニアピンキャリーカウントの更新
+                let nextNearPinCarry = currentNearPinCarry;
+                if (editingIndex === null && game.settings?.nearPinCarry && isPar3) {
+                    if (someoneGotNear) {
+                        nextNearPinCarry = 0; // 獲得者がいればリセット
+                    } else {
+                        nextNearPinCarry += 1; // 該当なしなら持ち越し
+                    }
+                }
+
                 onUpdate({ 
                     ...game, 
                     currentHole: nextHole,
                     currentOrder: nextOrder, 
                     totalVegasPoints: newVegasTotal, totalOlympicPoints: newOlympicTotal, 
                     vegasMultiplier: nextMult,
+                    nearPinCarryCount: nextNearPinCarry,
                     scores: newHistory 
                 });
 
@@ -866,12 +919,23 @@
                                                         {opt.rodState === -1 ? '竿失敗' : '竿イチ'}
                                                     </button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],sand:!v[p.id]?.sand}}))} className={`opt-btn ${opt.sand?'active':''}`}>砂イチ</button>
-                                                    <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id]?.near}}))} className={`opt-btn ${opt.near?'active-gold':''}`} disabled={par!==3 && game.settings?.vegas}>ニアピン</button>
+                                                    <button 
+                                                        onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],near:!v[p.id]?.near}}))} 
+                                                        className={`opt-btn ${opt.near?'active-gold':''}`} 
+                                                        disabled={par!==3 && game.settings?.vegas}
+                                                    >
+                                                        ニアピン
+                                                        {par === 3 && game.settings?.nearPinCarry && (game.nearPinCarryCount > 0) && <span className="text-[9px] ml-0.5 text-red-500 font-black">x{game.nearPinCarryCount + 1}</span>}
+                                                    </button>
                                                     <button onClick={() => setPlayerOptions(v=>({...v,[p.id]:{...v[p.id],reverse:!v[p.id]?.reverse}}))} className={`opt-btn ${opt.reverse?'active-red':''}`}>逆オリ</button>
                                                     <button className={`opt-btn ${opt.birdie?'active':''}`} disabled>バーディ</button>
                                                     <button className={`opt-btn ${opt.eagle?'active-gold':''}`} disabled>イーグル</button>
-                                                    <button className={`opt-btn ${opt.four || pastFour > 0 ? 'achieved' : 'placeholder'}`} disabled>4カード{pastFour+(opt.four?1:0)>1?` x${pastFour+(opt.four?1:0)}`:''}</button>
-                                                    <button className={`opt-btn ${opt.straight || pastStraight > 0 ? 'achieved' : 'placeholder'}`} disabled>ストレート{pastStraight+(opt.straight?1:0)>1?` x${pastStraight+(opt.straight?1:0)}`:''}</button>
+                                                    {game.settings?.fourCard && (
+                                                        <button className={`opt-btn ${opt.four || pastFour > 0 ? 'achieved' : 'placeholder'}`} disabled>4カード{pastFour+(opt.four?1:0)>1?` x${pastFour+(opt.four?1:0)}`:''}</button>
+                                                    )}
+                                                    {game.settings?.straight && (
+                                                        <button className={`opt-btn ${opt.straight || pastStraight > 0 ? 'achieved' : 'placeholder'}`} disabled>ストレート{pastStraight+(opt.straight?1:0)>1?` x${pastStraight+(opt.straight?1:0)}`:''}</button>
+                                                    )}
                                                 </div>
                                                 <div className="mt-2 flex items-center gap-2 justify-end">
                                                     <label className="text-[10px] font-bold text-gray-400">調整:</label>
