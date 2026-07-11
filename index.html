@@ -544,6 +544,7 @@
             const [undoConfirm, setUndoConfirm] = useState(false); 
             const [setupConfirm, setSetupConfirm] = useState(false);
             const [editingIndex, setEditingIndex] = useState(null);
+            const [showSettingsModal, setShowSettingsModal] = useState(false); // ★追加
 
             const isThree = (game.players || []).length === 3;
             const [manualTeamA, setManualTeamA] = useState([]);
@@ -556,6 +557,61 @@
 
             const MEDAL_PTS = { diamond: 5, gold: 4, silver: 3, bronze: 2, iron: 1 };
             const MEDAL_REVERSE_PTS = { diamond: -5, gold: -1, silver: -2, bronze: -3, iron: -4 };
+
+            // ★追加: 遡及的に設定を適用し、過去のスコアを再計算する関数
+            const applyRetroactiveSettings = (newSettings) => {
+                let newScores = JSON.parse(JSON.stringify(game.scores || []));
+                let newTotalOlympic = (game.players || []).reduce((a,p)=>({...a,[p.id]:0}),{});
+                
+                newScores.forEach((h, index) => {
+                    (game.players || []).forEach(p => {
+                        const pId = p.id;
+                        
+                        // 該当ホールまでのメダル獲得数を再カウント
+                        let counts = { diamond: 0, gold: 0, silver: 0, bronze: 0, iron: 0 };
+                        for (let i = 0; i <= index; i++) {
+                            const hole = newScores[i];
+                            const m = hole.medals && hole.medals[pId];
+                            const wasReverse = hole.reverseStates && hole.reverseStates[pId];
+                            if (m && !wasReverse) counts[m]++;
+                        }
+                        
+                        // 古い設定で加算されていたボーナスを特定
+                        let oldFourBonus = 0;
+                        if (game.settings?.fourCard && h.achievements?.[pId]?.four) {
+                            ['diamond','gold','silver','bronze','iron'].forEach(t => { if(counts[t]>0 && counts[t]%4===0) oldFourBonus += (MEDAL_PTS[t]*4); });
+                        }
+                        let oldStraightBonus = 0;
+                        if (game.settings?.straight && h.achievements?.[pId]?.straight) {
+                            oldStraightBonus = (counts.diamond > 0 ? 15 : 10);
+                        }
+                        
+                        // 新しい設定で加算すべきボーナスを特定
+                        let newFourBonus = 0;
+                        if (newSettings.fourCard && h.achievements?.[pId]?.four) {
+                            ['diamond','gold','silver','bronze','iron'].forEach(t => { if(counts[t]>0 && counts[t]%4===0) newFourBonus += (MEDAL_PTS[t]*4); });
+                        }
+                        let newStraightBonus = 0;
+                        if (newSettings.straight && h.achievements?.[pId]?.straight) {
+                            newStraightBonus = (counts.diamond > 0 ? 15 : 10);
+                        }
+                        
+                        // ボーナス分を一旦引いて、新しいボーナスを足す（基本点は維持）
+                        let basePoints = (h.olympicPoints[pId] || 0) - oldFourBonus - oldStraightBonus;
+                        h.olympicPoints[pId] = basePoints + newFourBonus + newStraightBonus;
+                        
+                        newTotalOlympic[pId] += h.olympicPoints[pId];
+                    });
+                });
+                
+                onUpdate({
+                    ...game,
+                    settings: newSettings,
+                    scores: newScores,
+                    totalOlympicPoints: newTotalOlympic
+                });
+                setShowSettingsModal(false);
+            };
 
             const getAchievementCounts = (pId, currentMedal, currentIsReverse) => {
                 let counts = { diamond: 0, gold: 0, silver: 0, bronze: 0, iron: 0 };
@@ -969,6 +1025,13 @@
 
                     <button onClick={() => { setShowFinal(true); scrollToTop(); }} className="w-full mt-8 bg-white text-green-600 border-2 border-green-600 text-lg font-bold py-4 rounded-2xl btn-press shadow-sm tracking-wider">現在までの結果を見る</button>
 
+                    {/* ★追加: オプション設定変更ボタン */}
+                    {game.settings?.olympic && (
+                        <button onClick={() => { setShowSettingsModal(true); scrollToTop(); }} className="w-full mt-4 bg-gray-100 text-gray-500 font-bold py-3 rounded-xl btn-press shadow-sm flex items-center justify-center gap-2 text-sm">
+                            <i className="fa-solid fa-sliders"></i> オプション（4カード等）の変更
+                        </button>
+                    )}
+
                     {setupConfirm && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] animate-fade-in backdrop-blur-sm">
                             <div className="bg-white rounded-3xl w-full max-sm p-6 text-center shadow-2xl">
@@ -989,6 +1052,38 @@
                             </div>
                         </div>
                     )}
+
+                    {/* ★追加: オプション設定モーダル */}
+                    {showSettingsModal && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] animate-fade-in backdrop-blur-sm">
+                            <div className="bg-white rounded-3xl w-full max-sm p-6 shadow-2xl relative">
+                                <div className="flex items-center justify-center w-12 h-12 bg-blue-50 rounded-full mx-auto mb-4">
+                                    <i className="fa-solid fa-sliders text-blue-500 text-2xl"></i>
+                                </div>
+                                <h3 className="text-gray-800 text-lg font-black mb-4 text-center">オプション設定の変更</h3>
+                                <div className="space-y-3 mb-6">
+                                    <label className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 cursor-pointer">
+                                        <input type="checkbox" defaultChecked={game.settings?.fourCard} id="fourCardToggle" className="w-5 h-5 rounded text-green-600 focus:ring-green-500" />
+                                        <span className="text-sm font-bold text-gray-700">4カードあり</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 cursor-pointer">
+                                        <input type="checkbox" defaultChecked={game.settings?.straight} id="straightToggle" className="w-5 h-5 rounded text-green-600 focus:ring-green-500" />
+                                        <span className="text-sm font-bold text-gray-700">ストレートあり</span>
+                                    </label>
+                                    <p className="text-xs text-red-500 font-bold text-center mt-3">※過去のホールにも遡って即座に再計算されます</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowSettingsModal(false)} className="flex-1 py-3.5 bg-gray-100 text-gray-500 rounded-xl font-bold btn-press">キャンセル</button>
+                                    <button onClick={() => {
+                                        const newFourCard = document.getElementById('fourCardToggle').checked;
+                                        const newStraight = document.getElementById('straightToggle').checked;
+                                        applyRetroactiveSettings({ ...game.settings, fourCard: newFourCard, straight: newStraight });
+                                    }} className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg btn-press">再計算する</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showFinal && <ResultsModal game={game} players={game.players || []} onClose={()=>{ setShowFinal(false); scrollToTop(); }} onEnd={onBack} />}
                     {(game.scores || []).length > 0 && editingIndex === null && <button onClick={() => setUndoConfirm(true)} className="w-full mt-4 text-red-500 text-xs font-bold py-2 flex items-center justify-center gap-1"><i className="fa-solid fa-rotate-left"></i> 直前のホールを削除</button>}
                 </div>
